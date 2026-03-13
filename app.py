@@ -788,6 +788,7 @@ def create_project_zip():
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
         # 1. 儲存參數設定
         params = {
+            "基地座標": list(base_coords),  # 加入基地座標
             "建築參數": {
                 "基準面寬": width_req,
                 "基準深度": depth_req,
@@ -846,6 +847,10 @@ if uploaded_project is not None:
     try:
         import json
         project_data = json.load(uploaded_project)
+        
+        # 恢復基地座標
+        if '基地座標' in project_data:
+            st.session_state['base_coords'] = [tuple(coord) for coord in project_data['基地座標']]
         
         if '建築參數' in project_data:
             params = project_data['建築參數']
