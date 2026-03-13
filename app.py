@@ -907,7 +907,8 @@ if uploaded_project is not None:
                         lots_from_dxf.append(Polygon(lot_points))
                 
                 if lots_from_dxf:
-                    st.session_state['imported_lots'] = lots_from_dxf
+                    # 轉換為 (polygon, 0, 0, 1) 格式（arrow_dx=0, arrow_dy=0, block_id=1）
+                    st.session_state['imported_lots'] = [(lot, 0, 0, 1) for lot in lots_from_dxf]
                 
                 # 讀取道路（ROAD 圖層）
                 roads_from_dxf = []
