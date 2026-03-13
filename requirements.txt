@@ -1,0 +1,6 @@
+streamlit
+shapely
+matplotlib
+ezdxf
+pandas
+numpy

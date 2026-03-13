@@ -1,0 +1,668 @@
+import os
+import json
+import streamlit as st
+
+# 資料持久化
+DATA_FILE = '/tmp/land_data.json'
+
+def load_saved_data():
+    """載入保存的地號資料"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_data(data):
+    """保存地號資料"""
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.error(f"保存失敗: {e}")
+
+# 程式啟動時載入資料
+if 'lots_data' not in st.session_state:
+    saved = load_saved_data()
+    if saved:
+        st.session_state.update(saved)
+        st.sidebar.success("✅ 已載入上次的地號資料")
+
+def block_id_to_letter(block_id):
+    """将数字区块ID转换为字母（1->A, 2->B, ...）"""
+    return chr(64 + block_id)  # 65 is 'A'
+
+
+import matplotlib.pyplot as plt
+from shapely.geometry import Polygon, box
+import shapely.ops
+import shapely.affinity
+
+def get_polygon_coords(poly):
+    if poly.geom_type == 'MultiPolygon':
+        x, y = [], []
+        for p in poly.geoms:
+            px, py = p.exterior.xy
+            x.extend(px)
+            x.append(None)
+            y.extend(py)
+            y.append(None)
+        return x, y
+    elif poly.geom_type == 'Polygon':
+        return poly.exterior.xy
+    return [], []
+
+import numpy as np
+import pandas as pd
+import json
+import ezdxf
+import tempfile
+import os
+
+def read_plines(doc):
+    layers = {}
+    for e in doc.modelspace():
+        try:
+            t = e.dxftype()
+            if t == 'LWPOLYLINE':
+                pts = [(p[0],p[1]) for p in e.get_points(format='xy')]
+            elif t == 'POLYLINE':
+                pts = [(float(v.dxf.location.x),float(v.dxf.location.y)) for v in e.vertices]
+            else: continue
+            if len(pts)>=3:
+                layers.setdefault(e.dxf.layer,[]).append(pts)
+        except: pass
+    return layers
+
+def hull(points):
+    pts = sorted(set(points))
+    if len(pts)<=2: return pts
+    def cr(o,a,b): return (a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0])
+    lo,up=[],[]
+    for p in pts:
+        while len(lo)>=2 and cr(lo[-2],lo[-1],p)<=0: lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(up)>=2 and cr(up[-2],up[-1],p)<=0: up.pop()
+        up.append(p)
+    return lo[:-1]+up[:-1]
+
+
+import io
+
+plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'Heiti TC', 'PingFang HK', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
+st.set_page_config(page_title="自動割豆腐排平圖系統", layout="wide")
+
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] { width: 340px !important; }
+    /* 只縮小側邊欄的字體，避免主標題被切割 */
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { font-size: 15px !important; }
+    .block-container { 
+        padding-top: 2rem !important; 
+        padding-bottom: 1rem !important; 
+        padding-left: 2rem !important; 
+        padding-right: 2rem !important; 
+        max-width: 1200px !important; 
+        margin: 0 auto;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
+    doc = ezdxf.new('R2013')
+    dxf_block_counts = {}
+    
+    # 建立圖層與顏色 (1:紅, 2:黃, 3:綠, 4:青, 5:藍, 6:洋紅, 7:白, 8:灰)
+    doc.layers.add('SITE_BOUNDARY', color=1)
+    doc.layers.add('LOTS', color=3)
+    doc.layers.add('BUILDING', color=5)
+    doc.layers.add('ROAD', color=8)
+    doc.layers.add('DIMENSION', color=1)
+    doc.layers.add('TEXT', color=7)
+    
+    msp = doc.modelspace()
+    
+    # 畫基地外框
+    if base_poly.geom_type == 'Polygon':
+        pts = list(base_poly.exterior.coords)
+        msp.add_lwpolyline([(p[0]*100, p[1]*100) for p in pts], close=True, dxfattribs={'layer': 'SITE_BOUNDARY'})
+        
+    # 畫道路
+    for r in roads_poly_list:
+        if r.geom_type == 'Polygon':
+            pts = list(r.exterior.coords)
+            msp.add_lwpolyline([(p[0]*100, p[1]*100) for p in pts], close=True, dxfattribs={'layer': 'ROAD'})
+            
+    # 畫土地與建築物
+    for lot_tuple in lots:
+        if len(lot_tuple) == 4:
+            lot, arrow_dx, arrow_dy, block_id = lot_tuple
+        else:
+            lot, arrow_dx, arrow_dy = lot_tuple
+            block_id = 1
+        area_ping = lot.area * 0.3025
+        if area_ping < min_ping: continue
+        
+        # 土地
+        if lot.geom_type == 'Polygon':
+            pts = list(lot.exterior.coords)
+            msp.add_lwpolyline([(p[0]*100, p[1]*100) for p in pts], close=True, dxfattribs={'layer': 'LOTS'})
+            
+        lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
+        if abs(arrow_dx) > abs(arrow_dy):
+            xf = coverage_ratio/100.0
+            yf = 1.0
+        else:
+            xf = 1.0
+            yf = coverage_ratio/100.0
+            
+        build_poly = shapely.affinity.scale(lot, xfact=xf, yfact=yf, origin='centroid')
+        build_poly = build_poly.intersection(lot)
+        
+        # 收集街廓面寬統計
+        if block_id not in block_width_stats:
+            block_width_stats[block_id] = []
+        block_width_stats[block_id].append(round(lot_width, 1))
+        
+        # 建築物
+        if build_poly.geom_type == 'Polygon':
+            pts = list(build_poly.exterior.coords)
+            msp.add_lwpolyline([(p[0]*100, p[1]*100) for p in pts], close=True, dxfattribs={'layer': 'BUILDING'})
+            
+        # 文字標籤（多行分開顯示避免重疊）
+        centroid = lot.centroid
+        build_ping = build_poly.area * 0.3025
+        
+        # 使用block_counts統計區內編號
+        if 'dxf_block_counts' not in locals():
+            dxf_block_counts = {}
+        dxf_block_counts[block_id] = dxf_block_counts.get(block_id, 0) + 1
+        
+        # 分三行顯示：編號、土地面積、建築面積
+        msp.add_text(f"{block_id_to_letter(block_id)}區-{dxf_block_counts[block_id]}", dxfattribs={'layer': 'TEXT', 'height': 60}).set_placement((centroid.x*100-150, centroid.y*100+100))
+        msp.add_text(f"土地:{area_ping:.1f}p", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100))
+        msp.add_text(f"建築:{build_ping:.1f}p", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100-100))
+        
+        # 面寬標線
+        b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
+        if abs(arrow_dx) > abs(arrow_dy):
+            dim_x = b_minx if arrow_dx < 0 else b_maxx
+            b_width = b_maxy - b_miny
+            msp.add_line((dim_x*100, b_miny*100), (dim_x*100, b_maxy*100), dxfattribs={'layer': 'DIMENSION'})
+            msp.add_text(f"{b_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((dim_x*100+10, centroid.y*100))
+        else:
+            dim_y = b_miny if arrow_dy < 0 else b_maxy
+            b_width = b_maxx - b_minx
+            msp.add_line((b_minx*100, dim_y*100), (b_maxx*100, dim_y*100), dxfattribs={'layer': 'DIMENSION'})
+            msp.add_text(f"{b_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((centroid.x*100, dim_y*100+10))
+            
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.dxf') as tmp:
+        doc.saveas(tmp.name)
+        return tmp.name
+
+def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, block_params=None, custom_widths=None):
+    bounds = poly.bounds
+    if not bounds: return [], []
+    minx, miny, maxx, maxy = bounds
+    
+    roads = []
+    for r in roads_info:
+        r_type, r_pos, r_width = r
+        if r_type == 'V':
+            r_box = box(r_pos, miny-50, r_pos + r_width, maxy+50)
+        else:
+            r_box = box(minx-50, r_pos, maxx+50, r_pos + r_width)
+            
+        road_poly = poly.intersection(r_box)
+        if not road_poly.is_empty:
+            if road_poly.geom_type == 'Polygon': roads.append(road_poly)
+            else: roads.extend([geom for geom in road_poly.geoms if geom.area > 0.1])
+
+    roads_poly = shapely.ops.unary_union(roads) if roads else Polygon()
+    blocks_poly = poly.difference(roads_poly)
+    
+    lots = []
+    block_id = 1
+    if not blocks_poly.is_empty:
+        block_geoms = [blocks_poly] if blocks_poly.geom_type == 'Polygon' else list(blocks_poly.geoms)
+        
+        for block in block_geoms:
+            if block.area < 1.0:
+                continue
+                
+            b_minx, b_miny, b_maxx, b_maxy = block.bounds
+            bw = b_maxx - b_minx
+            bh = b_maxy - b_miny
+            
+            # 使用街廓專屬參數（如果有設定的話）
+            if block_params and block_id in block_params:
+                block_w, block_d = block_params[block_id]
+            else:
+                block_w, block_d = w, d
+            
+            if auto_orient:
+                if bw >= bh:
+                    lot_w, lot_d = block_w, block_d
+                    arrow_dx, arrow_dy = 0, -2
+                else:
+                    lot_w, lot_d = block_d, block_w
+                    arrow_dx, arrow_dy = -2, 0
+            else:
+                lot_w, lot_d = block_w, block_d
+                arrow_dx, arrow_dy = 0, -2
+
+            curr_x = b_minx
+            block_lots = []
+            
+            if bw >= bh:
+                while curr_x < b_maxx:
+                    nxt_x = curr_x + lot_w
+                    if nxt_x >= b_maxx or (auto_merge and (b_maxx - nxt_x) * lot_d * 0.3025 < min_area):
+                        nxt_x = b_maxx
+                        
+                    curr_y = b_miny
+                    while curr_y < b_maxy:
+                        nxt_y = curr_y + lot_d
+                        if nxt_y >= b_maxy or (auto_merge and (b_maxy - nxt_y) * (nxt_x - curr_x) * 0.3025 < min_area):
+                            nxt_y = b_maxy
+                            
+                        blade = box(curr_x, curr_y, nxt_x, nxt_y)
+                        lot_raw = block.intersection(blade)
+                        
+                        if not roads_poly.is_empty:
+                            lot = lot_raw.difference(roads_poly)
+                        else:
+                            lot = lot_raw
+                            
+                        if not lot.is_empty and lot.area > 0.1:
+                            if lot.geom_type == 'Polygon': block_lots.append((lot, arrow_dx, arrow_dy))
+                            else: block_lots.extend([(geom, arrow_dx, arrow_dy) for geom in lot.geoms if geom.area > 0.1])
+                            
+                        curr_y = nxt_y
+                    curr_x = nxt_x
+            else:
+                curr_y = b_miny
+                while curr_y < b_maxy:
+                    nxt_y = curr_y + lot_d
+                    if nxt_y >= b_maxy or (auto_merge and (b_maxy - nxt_y) * lot_w * 0.3025 < min_area):
+                        nxt_y = b_maxy
+                        
+                    curr_x = b_minx
+                    while curr_x < b_maxx:
+                        nxt_x = curr_x + lot_w
+                        if nxt_x >= b_maxx or (auto_merge and (b_maxx - nxt_x) * (nxt_y - curr_y) * 0.3025 < min_area):
+                            nxt_x = b_maxx
+                            
+                        blade = box(curr_x, curr_y, nxt_x, nxt_y)
+                        lot_raw = block.intersection(blade)
+                        
+                        if not roads_poly.is_empty:
+                            lot = lot_raw.difference(roads_poly)
+                        else:
+                            lot = lot_raw
+                            
+                        if not lot.is_empty and lot.area > 0.1:
+                            if lot.geom_type == 'Polygon': block_lots.append((lot, arrow_dx, arrow_dy))
+                            else: block_lots.extend([(geom, arrow_dx, arrow_dy) for geom in lot.geoms if geom.area > 0.1])
+                            
+                        curr_x = nxt_x
+                    curr_y = nxt_y
+
+
+            # Merge leftovers to nearest valid lot
+            valid_block_lots = []
+            leftover_block_lots = []
+            for lot, dx, dy in block_lots:
+                if lot.area * 0.3025 >= min_area:
+                    valid_block_lots.append((lot, dx, dy))
+                else:
+                    leftover_block_lots.append((lot, dx, dy))
+                    
+            if valid_block_lots:
+                for leftover, _, _ in leftover_block_lots:
+                    nearest_idx = min(range(len(valid_block_lots)), key=lambda i: valid_block_lots[i][0].distance(leftover))
+                    v_lot, v_dx, v_dy = valid_block_lots[nearest_idx]
+                    merged_lot = shapely.ops.unary_union([v_lot, leftover])
+                    valid_block_lots[nearest_idx] = (merged_lot, v_dx, v_dy)
+                for v_lot, v_dx, v_dy in valid_block_lots:
+                    lots.append((v_lot, v_dx, v_dy, block_id))
+            else:
+                for leftover, dx, dy in leftover_block_lots:
+                    lots.append((leftover, dx, dy, block_id))
+            block_id += 1
+
+
+    if roads:
+        if roads_poly.geom_type == 'Polygon': roads = [roads_poly]
+        elif roads_poly.geom_type == 'MultiPolygon': roads = list(roads_poly.geoms)
+
+    return lots, roads
+
+st.markdown("## 🏗️ 建築師排平圖系統 <span style='font-size: 14px; font-weight: normal; color: gray;'>（張哲維建築師事務所版權所有）</span>", unsafe_allow_html=True)
+
+with st.sidebar:
+    st.markdown("### 1. 建築參數")
+    width_req = st.number_input("基準面寬 (公尺)", min_value=3.0, max_value=20.0, value=5.0, step=0.1)
+    depth_req = st.number_input("基準深度 (公尺)", min_value=5.0, max_value=50.0, value=20.0, step=0.1)
+    coverage_ratio = st.slider("建蔽率 (%)", min_value=40, max_value=80, value=60, step=5)
+    min_ping = st.number_input("最小可建地坪", min_value=5.0, max_value=50.0, value=20.0, step=1.0)
+    
+    st.markdown("### 2. 土地檢討")
+    auto_orient = st.checkbox("依街廓形狀自動轉向", value=True)
+    auto_merge = st.checkbox("自動吸收邊角 (確保無剩餘碎地)", value=True)
+    
+    st.markdown("### 3. 手動配置多條道路")
+    roads_info = []
+    
+    col_v, col_h = st.columns(2)
+    with col_v:
+        num_v_roads = st.number_input("直向道路數量", min_value=0, max_value=5, value=1, step=1)
+    with col_h:
+        num_h_roads = st.number_input("橫向道路數量", min_value=0, max_value=5, value=1, step=1)
+        
+    if num_v_roads > 0:
+        st.markdown("**直向道路設定 (垂直於X軸)**")
+        for i in range(num_v_roads):
+            v_pos = st.slider(f"直道 {i+1} 座標 (X)", 0.0, 150.0, 30.0 + i*40.0, step=1.0, key=f"vpos_{i}")
+            v_w = st.slider(f"直道 {i+1} 寬度", 2.0, 20.0, 6.0, step=0.5, key=f"vw_{i}")
+            roads_info.append(('V', v_pos, v_w))
+            
+    if num_h_roads > 0:
+        st.markdown("**橫向道路設定 (垂直於Y軸)**")
+        for i in range(num_h_roads):
+            h_pos = st.slider(f"橫道 {i+1} 座標 (Y)", 0.0, 150.0, 45.0 + i*40.0, step=1.0, key=f"hpos_{i}")
+            h_w = st.slider(f"橫道 {i+1} 寬度", 2.0, 20.0, 8.0, step=0.5, key=f"hw_{i}")
+            roads_info.append(('H', h_pos, h_w))
+
+    st.markdown("### 上傳基地")
+    uploaded_file = st.file_uploader("", type=['csv', 'json', 'dxf'], label_visibility="collapsed")
+
+if 'base_coords' not in st.session_state:
+    st.session_state.base_coords = [(0, 0), (120, 0), (130, 120), (20, 130), (0, 60)]
+
+if uploaded_file is not None:
+    # 使用文件ID或文件名+大小作为唯一标识
+    file_id = getattr(uploaded_file, 'file_id', None) or f"{uploaded_file.name}_{uploaded_file.size}"
+    
+    # 只在文件真的改变时才重新处理
+    if 'last_file_id' not in st.session_state or st.session_state.last_file_id != file_id:
+        st.session_state.last_file_id = file_id
+        
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+                st.session_state.base_coords = list(zip(df['X'], df['Y']))
+            elif uploaded_file.name.endswith('.dxf'):
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.dxf') as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = tmp.name
+                try:
+                    doc = ezdxf.readfile(tmp_path)
+                    layers = read_plines(doc)
+                    land_key = None
+                    for k in layers:
+                        if 'U+5716' in k or '圖' in k: land_key=k; break
+                    if not land_key and layers: land_key = max(layers, key=lambda k:len(layers[k]))
+                    if land_key:
+                        longest_pl = max(layers[land_key], key=len)
+                        st.session_state.base_coords = [(p[0]/100.0, p[1]/100.0) for p in longest_pl]
+                finally:
+                    os.remove(tmp_path)
+        except Exception as e:
+            st.sidebar.warning(f"文件處理錯誤: {str(e)}")
+
+base_coords = st.session_state.base_coords
+
+base_polygon = Polygon(base_coords)
+
+# 預先檢測街廓數量
+lots_preview, roads_preview = generate_layout(
+    base_polygon, width_req, depth_req, 
+    roads_info, min_ping, auto_orient, auto_merge
+)
+
+# 統計街廓數量
+block_ids = set()
+for lot_tuple in lots_preview:
+    if len(lot_tuple) == 4:
+        _, _, _, bid = lot_tuple
+        block_ids.add(bid)
+
+num_blocks = len(block_ids)
+
+# 為每個街廓提供獨立的面寬設定
+if num_blocks > 1:
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown(f"### 4. 各街廓參數設定 ({num_blocks} 個街廓)")
+        
+        block_params = {}
+        for bid in sorted(block_ids):
+            with st.expander(f"{block_id_to_letter(bid)}區 參數"):
+                bw = st.number_input(f"{block_id_to_letter(bid)}區 面寬 (m)", min_value=3.0, max_value=20.0, value=width_req, step=0.1, key=f"bw_{bid}")
+                bd = st.number_input(f"{block_id_to_letter(bid)}區 深度 (m)", min_value=5.0, max_value=50.0, value=depth_req, step=0.1, key=f"bd_{bid}")
+                block_params[bid] = (bw, bd)
+else:
+    block_params = None
+
+lots, roads = generate_layout(
+    base_polygon, width_req, depth_req, 
+    roads_info, min_ping, auto_orient, auto_merge, block_params
+, st.session_state.get("custom_lot_widths"))
+
+fig, ax = plt.subplots(figsize=(10, 7))
+
+# 1. 畫基地外框
+x, y = get_polygon_coords(base_polygon)
+ax.plot(x, y, color='red', linewidth=2.5, linestyle='--', label="Boundary", zorder=10)
+
+valid_count = 0
+lot_area_total = 0
+
+# 2. 先畫土地
+block_counts = {}
+block_width_stats = {}  # 統計每個街廓的面寬分布
+for lot_tuple in lots:
+    if len(lot_tuple) == 4:
+        lot, arrow_dx, arrow_dy, block_id = lot_tuple
+    else:
+        lot, arrow_dx, arrow_dy = lot_tuple
+        block_id = 1
+    x, y = get_polygon_coords(lot)
+    area_ping = lot.area * 0.3025
+    lot_area_total += area_ping
+    centroid = lot.centroid
+    
+    if area_ping >= min_ping:
+        valid_count += 1
+        ax.fill(x, y, alpha=0.5, color='lightblue', edgecolor='black', zorder=2)
+        
+        lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
+        if abs(arrow_dx) > abs(arrow_dy):
+            # faces left/right -> scale X
+            xf = coverage_ratio/100.0
+            yf = 1.0
+            text_rot = 0
+            lot_width = lot_maxy - lot_miny
+        else:
+            # faces up/down -> scale Y
+            xf = 1.0
+            yf = coverage_ratio/100.0
+            text_rot = 90
+            lot_width = lot_maxx - lot_minx
+        
+        build_poly = shapely.affinity.scale(lot, xfact=xf, yfact=yf, origin='centroid')
+        build_poly = build_poly.intersection(lot)
+        
+        # 收集街廓面寬統計
+        if block_id not in block_width_stats:
+            block_width_stats[block_id] = []
+        block_width_stats[block_id].append(round(lot_width, 1)) 
+        
+        if build_poly.geom_type == 'Polygon':
+            bx, by = get_polygon_coords(build_poly)
+            ax.plot(bx, by, color='blue', linewidth=0.5, alpha=0.7, zorder=3)
+        elif build_poly.geom_type == 'MultiPolygon':
+            for bp in build_poly.geoms:
+                bx, by = get_polygon_coords(bp)
+                ax.plot(bx, by, color='blue', linewidth=0.5, alpha=0.7, zorder=3)
+        
+        # ax.arrow(centroid.x, centroid.y, arrow_dx, arrow_dy, head_width=1.2, head_length=1.2, fc='blue', ec='blue', alpha=0.5, zorder=4)
+        
+        # ax.text(centroid.x, centroid.y + 1.5, f"編號: {valid_count}", ha='center', va='center', fontsize=5, fontweight='bold', zorder=5)
+        build_ping = build_poly.area * 0.3025
+        block_counts[block_id] = block_counts.get(block_id, 0) + 1
+        ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
+        
+        # 繪製尺寸標示(面寬 - 標示在建築物短向)
+        b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
+        if abs(arrow_dx) > abs(arrow_dy):
+            # 道路在左右側，建築物短向(面寬)在 Y 軸
+            dim_x = b_minx if arrow_dx < 0 else b_maxx
+            b_width = b_maxy - b_miny
+            ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='darkred', linewidth=1.0, zorder=6)
+            ax.scatter([dim_x, dim_x], [b_miny, b_maxy], color='darkred', s=10, marker='|', zorder=6)
+            ax.text(dim_x, centroid.y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', rotation=90, bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
+        else:
+            # 道路在上下側，建築物短向(面寬)在 X 軸
+            dim_y = b_miny if arrow_dy < 0 else b_maxy
+            b_width = b_maxx - b_minx
+            ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='darkred', linewidth=1.0, zorder=6)
+            ax.scatter([b_minx, b_maxx], [dim_y, dim_y], color='darkred', s=10, marker='_', zorder=6)
+            ax.text(centroid.x, dim_y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
+
+
+        # ax.text(centroid.x, centroid.y - 1.5, f"投影 {build_poly.area:.1f} ㎡", ha='center', va='center', fontsize=5, fontweight='bold', color='blue', zorder=5)
+    else:
+        ax.fill(x, y, alpha=0.3, color='lightgray', edgecolor='black', zorder=2)
+        ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", 
+                ha='center', va='center', fontsize=5, color='darkred', zorder=5)
+
+# 3. 畫道路
+for r in roads:
+    rx, ry = get_polygon_coords(r)
+    ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
+
+ax.set_aspect('equal')
+ax.axis('off')
+plt.tight_layout()
+
+road_area = sum([r.area for r in roads]) * 0.3025 if roads else 0
+total_area = base_polygon.area * 0.3025
+
+st.markdown(f"#### 📊 基地總面積 {total_area:.1f} 坪 ｜ 道路 {road_area:.1f} 坪 ｜ 土地 {lot_area_total:.1f} 坪 ｜ 有效 {valid_count} 戶")
+
+# 街廓面寬分析表
+if block_width_stats:
+    st.markdown("### 📐 街廓面寬檢討（分區分產品）")
+    
+    analysis_data = []
+    for bid in sorted(block_width_stats.keys()):
+        widths = block_width_stats[bid]
+        from collections import Counter
+        width_counter = Counter(widths)
+        
+        # 產品組合分析
+        products = []
+        for w, count in sorted(width_counter.items()):
+            products.append(f"{w}m ({count}戶)")
+        
+        analysis_data.append({
+            "街廓": f"{block_id_to_letter(bid)}區",
+            "總戶數": len(widths),
+            "產品組合": " + ".join(products),
+            "主力面寬": max(width_counter, key=width_counter.get),
+            "面寬範圍": f"{min(widths):.1f}m ~ {max(widths):.1f}m"
+        })
+    
+    import pandas as pd
+    df_analysis = pd.DataFrame(analysis_data)
+    st.dataframe(df_analysis, use_container_width=True, hide_index=True)
+
+# 生成圖片以供下載
+buf = io.BytesIO()
+fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📥 圖面輸出")
+st.sidebar.download_button(
+    label="下載排平圖 (高畫質 PNG)",
+    data=buf.getvalue(),
+    file_name="layout_plan.png",
+    mime="image/png"
+)
+
+col_space1, col_chart, col_space2 = st.columns([1, 8, 1])
+with col_chart:
+    st.pyplot(fig)
+
+# 地號資料編輯器（在圖表顯示後）
+if lots:
+    st.markdown("---")
+    st.markdown("### 📝 地號寬度調整")
+    st.info("💡 點擊表格中的數值可以直接編輯。修改後點「重新生成」即可更新。")
+    
+    # 準備可編輯的地號資料
+    lot_data = []
+    for i, lot_tuple in enumerate(lots):
+        if len(lot_tuple) == 4:
+            lot, _, _, block_id = lot_tuple
+        else:
+            lot, _, _ = lot_tuple
+            block_id = 1
+        
+        lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
+        if abs(lot_maxx - lot_minx) > abs(lot_maxy - lot_miny):
+            current_width = lot_maxy - lot_miny
+        else:
+            current_width = lot_maxx - lot_minx
+        
+        lot_num = len([l for l in lot_data if l["街廓"] == block_id_to_letter(block_id)]) + 1
+        lot_id = f"{block_id_to_letter(block_id)}區-{lot_num}"
+        
+        lot_data.append({
+            "地號": lot_id,
+            "街廓": block_id_to_letter(block_id),
+            "目前寬度(m)": round(current_width, 1),
+            "期望寬度(m)": round(current_width, 1),  # 預設與目前相同
+        })
+    
+    import pandas as pd
+    df_lots = pd.DataFrame(lot_data)
+    
+    # 使用 data_editor 讓使用者編輯
+    edited_df = st.data_editor(
+        df_lots,
+        column_config={
+            "地號": st.column_config.TextColumn("地號", disabled=True),
+            "街廓": st.column_config.TextColumn("街廓", disabled=True),
+            "目前寬度(m)": st.column_config.NumberColumn("目前寬度(m)", disabled=True, format="%.1f"),
+            "期望寬度(m)": st.column_config.NumberColumn("期望寬度(m)", min_value=3.0, max_value=20.0, format="%.1f"),
+        },
+        use_container_width=True,
+        hide_index=True,
+    )
+    
+    # 檢查是否有修改
+    if not edited_df["期望寬度(m)"].equals(df_lots["期望寬度(m)"]):
+        st.warning("⚠️ 寬度已修改，請點「重新生成」套用變更")
+        
+    # 保存編輯後的資料到 session_state
+    st.session_state['custom_lot_widths'] = edited_df.to_dict('records')
+
+
+# DXF Export
+dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+with open(dxf_file, "rb") as file:
+    btn = st.sidebar.download_button(
+        label="下載 DXF 檔 (支援分圖層, 可轉 DWG)",
+        data=file,
+        file_name="land_layout.dxf",
+        mime="application/dxf"
+    )
