@@ -2,6 +2,40 @@ import os
 import json
 import streamlit as st
 
+# ========== 登入驗證 ==========
+def check_login():
+    """檢查登入狀態"""
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    
+    if not st.session_state.logged_in:
+        st.markdown("## 🔐 建築師排平圖系統")
+        st.markdown("### 請登入")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            username = st.text_input("使用者名稱")
+            password = st.text_input("密碼", type="password")
+            
+            if st.button("🔓 登入", type="primary"):
+                if username == "admin" and password == "zebe2026":
+                    st.session_state.logged_in = True
+                    st.success("✅ 登入成功！")
+                    st.rerun()
+                else:
+                    st.error("❌ 帳號或密碼錯誤")
+        
+        with col2:
+            st.info("💡 提示\n\n帳號: admin\n密碼: zebe2026")
+        
+        st.stop()
+
+# 執行登入檢查
+check_login()
+
+# ========== 原始程式開始 ==========
+import streamlit as st
+
 # 資料持久化
 DATA_FILE = '/tmp/land_data.json'
 
