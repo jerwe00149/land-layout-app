@@ -621,50 +621,6 @@ for block_idx, block in enumerate(blocks):
             zorder=15
         )
 
-# 3.2 標註基地最長邊尺寸
-base_coords = list(base_polygon.exterior.coords)
-max_length = 0
-max_edge_idx = 0
-
-for i in range(len(base_coords) - 1):
-    p1 = base_coords[i]
-    p2 = base_coords[i + 1]
-    length = ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
-    if length > max_length:
-        max_length = length
-        max_edge_idx = i
-
-# 畫出最長邊的尺寸標註
-p1 = base_coords[max_edge_idx]
-p2 = base_coords[max_edge_idx + 1]
-mid_x = (p1[0] + p2[0]) / 2
-mid_y = (p1[1] + p2[1]) / 2
-
-# 計算垂直於邊的偏移方向
-dx = p2[0] - p1[0]
-dy = p2[1] - p1[1]
-edge_length = (dx**2 + dy**2)**0.5
-# 垂直向量（逆時針旋轉90度）
-offset_x = -dy / edge_length * 3
-offset_y = dx / edge_length * 3
-
-# 標註位置（往外偏移）
-label_x = mid_x + offset_x
-label_y = mid_y + offset_y
-
-# 繪製尺寸線
-ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='red', linewidth=2.5, linestyle='-', zorder=12)
-# 標註文字
-ax.text(
-    label_x, label_y,
-    f"{max_length:.1f}m",
-    ha='center', va='center',
-    fontsize=10, fontweight='bold',
-    color='red',
-    bbox=dict(facecolor='yellow', edgecolor='red', boxstyle='round,pad=0.5', alpha=0.9),
-    zorder=15
-)
-
 ax.set_aspect('equal')
 ax.axis('off')
 plt.tight_layout()
