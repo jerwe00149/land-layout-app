@@ -523,7 +523,7 @@ for lot_tuple in lots:
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
         ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
 
-        # 標註長寬尺寸
+        # 標註長寬尺寸（紅色，帶尺寸線）
         b_minx, b_miny, b_maxx, b_maxy = lot.bounds
         lot_width = b_maxx - b_minx
         lot_height = b_maxy - b_miny
@@ -532,19 +532,49 @@ for lot_tuple in lots:
         if lot_width > lot_height:
             # 水平長邊
             # 寬度標註（下方）
-            ax.text(centroid.x, b_miny - 0.8, f"{lot_width:.1f}m", 
-                   ha='center', va='top', fontsize=6, color='green', fontweight='bold', zorder=7)
+            dim_y = b_miny - 1.2
+            # 尺寸線
+            ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='red', linewidth=1.0, zorder=7)
+            # 端點標記
+            ax.plot([b_minx, b_minx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
+            ax.plot([b_maxx, b_maxx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
+            # 文字
+            ax.text(centroid.x, dim_y - 0.4, f"{lot_width:.1f}m", 
+                   ha='center', va='top', fontsize=6, color='red', fontweight='bold', zorder=8)
+            
             # 高度標註（左側）
-            ax.text(b_minx - 0.8, centroid.y, f"{lot_height:.1f}m", 
-                   ha='right', va='center', fontsize=6, color='green', fontweight='bold', rotation=90, zorder=7)
+            dim_x = b_minx - 1.2
+            # 尺寸線
+            ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='red', linewidth=1.0, zorder=7)
+            # 端點標記
+            ax.plot([dim_x - 0.2, dim_x + 0.2], [b_miny, b_miny], color='red', linewidth=1.0, zorder=7)
+            ax.plot([dim_x - 0.2, dim_x + 0.2], [b_maxy, b_maxy], color='red', linewidth=1.0, zorder=7)
+            # 文字
+            ax.text(dim_x - 0.4, centroid.y, f"{lot_height:.1f}m", 
+                   ha='right', va='center', fontsize=6, color='red', fontweight='bold', rotation=90, zorder=8)
         else:
             # 垂直長邊
             # 高度標註（右側）
-            ax.text(b_maxx + 0.8, centroid.y, f"{lot_height:.1f}m", 
-                   ha='left', va='center', fontsize=6, color='green', fontweight='bold', rotation=90, zorder=7)
+            dim_x = b_maxx + 1.2
+            # 尺寸線
+            ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='red', linewidth=1.0, zorder=7)
+            # 端點標記
+            ax.plot([dim_x - 0.2, dim_x + 0.2], [b_miny, b_miny], color='red', linewidth=1.0, zorder=7)
+            ax.plot([dim_x - 0.2, dim_x + 0.2], [b_maxy, b_maxy], color='red', linewidth=1.0, zorder=7)
+            # 文字
+            ax.text(dim_x + 0.4, centroid.y, f"{lot_height:.1f}m", 
+                   ha='left', va='center', fontsize=6, color='red', fontweight='bold', rotation=90, zorder=8)
+            
             # 寬度標註（下方）
-            ax.text(centroid.x, b_miny - 0.8, f"{lot_width:.1f}m", 
-                   ha='center', va='top', fontsize=6, color='green', fontweight='bold', zorder=7)
+            dim_y = b_miny - 1.2
+            # 尺寸線
+            ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='red', linewidth=1.0, zorder=7)
+            # 端點標記
+            ax.plot([b_minx, b_minx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
+            ax.plot([b_maxx, b_maxx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
+            # 文字
+            ax.text(centroid.x, dim_y - 0.4, f"{lot_width:.1f}m", 
+                   ha='center', va='top', fontsize=6, color='red', fontweight='bold', zorder=8)
 
         
         # 繪製尺寸標示(面寬 - 標示在建築物短向)
