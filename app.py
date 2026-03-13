@@ -909,11 +909,13 @@ if uploaded_project is not None:
                 if lots_from_dxf:
                     # 讀取 TEXT 圖層的地號標籤
                     lot_labels = {}
-                    # 讀取 TEXT 實體
-                    for text in msp.query('TEXT'):
-                        if text.dxf.layer != 'TEXT':
+                    # 讀取所有 TEXT 實體（不限圖層）
+                    for entity in msp:
+                        if entity.dxftype() != 'TEXT':
                             continue
-                        text_content = text.dxf.text
+                        if entity.dxf.layer != 'TEXT':
+                            continue
+                        text_content = entity.dxf.text
                         # 調試：記錄所有讀到的文字
                         st.sidebar.text(f"讀到: {text_content[:20]}")
                         if '區-' in text_content:
@@ -924,7 +926,7 @@ if uploaded_project is not None:
                                 # A→1, B→2, C→3, D→4
                                 block_id = ord(block_letter) - ord('A') + 1
                                 # 獲取文字位置
-                                text_pos = (text.dxf.insert[0]/100, text.dxf.insert[1]/100)
+                                text_pos = (entity.dxf.insert[0]/100, entity.dxf.insert[1]/100)
                                 lot_labels[text_pos] = block_id
                     
                     # 為每個地塊分配 block_id（根據質心位置找最近的標籤）
