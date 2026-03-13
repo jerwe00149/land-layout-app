@@ -593,14 +593,18 @@ for lot_tuple in lots:
             offset_x = perp_x * 1.5
             offset_y = perp_y * 1.5
             # 計算旋轉角度（與邊平行）
-            text_angle = angle if abs(angle) < 90 else angle - 180
+            text_angle = math.degrees(math.atan2(dy, dx))
+            # 調整角度使文字保持可讀（不上下顛倒）
+            if text_angle > 90:
+                text_angle -= 180
+            elif text_angle < -90:
+                text_angle += 180
             
-            ax.text(mid_x + offset_x, mid_y + offset_y, 
+            ax.text(edge_mid_x + offset_x, edge_mid_y + offset_y, 
                    f"{max_edge_len:.1f}m", 
                    ha='center', va='center', 
-                   fontsize=6, color='green', fontweight='bold',
-                   rotation=90,
-                   bbox=dict(facecolor='white', edgecolor='green', pad=0.4, alpha=0.9),
+                   fontsize=7, color='green', fontweight='bold',
+                   rotation=text_angle,
                    zorder=6)
         
         # 繪製尺寸標示(面寬 - 標示在建築物短向)
