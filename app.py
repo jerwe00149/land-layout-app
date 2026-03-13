@@ -590,8 +590,7 @@ for lot_tuple in lots:
         # ax.text(centroid.x, centroid.y - 1.5, f"投影 {build_poly.area:.1f} ㎡", ha='center', va='center', fontsize=5, fontweight='bold', color='blue', zorder=5)
     else:
         ax.fill(x, y, alpha=0.3, color='lightgray', edgecolor='black', zorder=2)
-        ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", 
-        # ha='center', va='center', fontsize=5, color='darkred', zorder=5)
+        ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", ha='center', va='center', fontsize=5, color='gray', zorder=5)
 
 # 3. 畫道路
 for r in roads:
