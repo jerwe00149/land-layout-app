@@ -365,23 +365,44 @@ with st.sidebar:
     
     col_v, col_h = st.columns(2)
     with col_v:
-        num_v_roads = st.number_input("直向道路數量", min_value=0, max_value=5, value=1, step=1)
+        # 從 roads_info 推斷現有道路數量
+        existing_v = sum(1 for r in roads_info if r[0] == "V") if roads_info else 0
+        existing_h = sum(1 for r in roads_info if r[0] == "H") if roads_info else 0
+        num_v_roads = st.number_input("直向道路數量", min_value=0, max_value=5, value=max(1, existing_v), step=1)
     with col_h:
-        num_h_roads = st.number_input("橫向道路數量", min_value=0, max_value=5, value=1, step=1)
+        num_h_roads = st.number_input("橫向道路數量", min_value=0, max_value=5, value=max(1, existing_h), step=1)
         
+    # 重新建立 roads_info
+    new_roads_info = []
+    
     if num_v_roads > 0:
         st.markdown("**直向道路設定 (垂直於X軸)**")
+        # 取得現有的直向道路
+        existing_v_roads = [r for r in roads_info if r[0] == 'V']
         for i in range(num_v_roads):
-            v_pos = st.slider(f"直道 {i+1} 座標 (X)", 0.0, 150.0, 30.0 + i*40.0, step=1.0, key=f"vpos_{i}")
-            v_w = st.slider(f"直道 {i+1} 寬度", 1.5, 20.0, 6.0, step=0.5, key=f"vw_{i}")
-            roads_info.append(('V', v_pos, v_w))
+            # 如果有現有道路，使用其值；否則使用預設值
+            default_pos = existing_v_roads[i][1] if i < len(existing_v_roads) else 30.0 + i*40.0
+            default_w = existing_v_roads[i][2] if i < len(existing_v_roads) else 6.0
+            
+            v_pos = st.slider(f"直道 {i+1} 座標 (X)", 0.0, 150.0, default_pos, step=1.0, key=f"vpos_{i}")
+            v_w = st.slider(f"直道 {i+1} 寬度", 1.5, 20.0, default_w, step=0.5, key=f"vw_{i}")
+            new_roads_info.append(('V', v_pos, v_w))
             
     if num_h_roads > 0:
         st.markdown("**橫向道路設定 (垂直於Y軸)**")
+        # 取得現有的橫向道路
+        existing_h_roads = [r for r in roads_info if r[0] == 'H']
         for i in range(num_h_roads):
-            h_pos = st.slider(f"橫道 {i+1} 座標 (Y)", 0.0, 150.0, 45.0 + i*40.0, step=1.0, key=f"hpos_{i}")
-            h_w = st.slider(f"橫道 {i+1} 寬度", 1.5, 20.0, 8.0, step=0.5, key=f"hw_{i}")
-            roads_info.append(('H', h_pos, h_w))
+            # 如果有現有道路，使用其值；否則使用預設值
+            default_pos = existing_h_roads[i][1] if i < len(existing_h_roads) else 45.0 + i*40.0
+            default_w = existing_h_roads[i][2] if i < len(existing_h_roads) else 8.0
+            
+            h_pos = st.slider(f"橫道 {i+1} 座標 (Y)", 0.0, 150.0, default_pos, step=1.0, key=f"hpos_{i}")
+            h_w = st.slider(f"橫道 {i+1} 寬度", 1.5, 20.0, default_w, step=0.5, key=f"hw_{i}")
+            new_roads_info.append(('H', h_pos, h_w))
+    
+    # 更新 roads_info
+    roads_info = new_roads_info
 
     st.markdown("### 上傳基地")
     uploaded_file = st.file_uploader("", type=['csv', 'json', 'dxf'], label_visibility="collapsed")
