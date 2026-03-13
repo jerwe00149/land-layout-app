@@ -603,6 +603,38 @@ col_space1, col_chart, col_space2 = st.columns([1, 8, 1])
 with col_chart:
     st.pyplot(fig)
 
+# 下載區域
+st.markdown("---")
+st.markdown("### 📥 下載檔案")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    buf_download = io.BytesIO()
+    fig.savefig(buf_download, format="png", dpi=300, bbox_inches='tight')
+    st.download_button(
+        label="📊 下載排平圖 PNG",
+        data=buf_download.getvalue(),
+        file_name="layout_plan.png",
+        mime="image/png",
+        use_container_width=True
+    )
+
+with col2:
+    dxf_file_download = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+    with open(dxf_file_download, "rb") as file:
+        st.download_button(
+            label="📐 下載 DXF 檔案",
+            data=file,
+            file_name="land_layout.dxf",
+            mime="application/dxf",
+            use_container_width=True
+        )
+
+with col3:
+    st.info("💡 DXF 可用\nAutoCAD/ZWCAD\n開啟")
+
+
 # 地號資料編輯器（在圖表顯示後）
 if lots:
     st.markdown("---")
