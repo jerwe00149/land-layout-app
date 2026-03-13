@@ -1,4 +1,40 @@
-import os
+import streamlit as st
+
+# ========== 登入驗證 ==========
+def check_password():
+    """返回 True 如果用戶輸入了正確的密碼"""
+    
+    def password_entered():
+        """檢查密碼是否正確"""
+        if (st.session_state["username"] == "admin" and
+            st.session_state["password"] == "zebe2026"):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+            del st.session_state["username"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if st.session_state.get("password_correct", False):
+        return True
+
+    # 顯示登入介面
+    st.markdown("## 🔐 建築師排平圖系統")
+    st.markdown("### 請登入")
+    st.text_input("使用者名稱", key="username")
+    st.text_input("密碼", type="password", key="password")
+    st.button("登入", on_click=password_entered)
+    
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        st.error("❌ 帳號或密碼錯誤")
+    
+    st.info("💡 預設帳號: admin / 密碼: zebe2026")
+    return False
+
+# 檢查登入
+if not check_password():
+    st.stop()
+
+# ========== 以下是原始程式 ==========
 import json
 import streamlit as st
 
