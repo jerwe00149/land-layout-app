@@ -915,7 +915,7 @@ if uploaded_project is not None:
                             continue
                         text_content = text.dxf.text
                         # 調試：記錄所有讀到的文字
-                        # st.write(f"DEBUG: {text_content}")
+                        st.sidebar.text(f"讀到: {text_content[:20]}")
                         if '區-' in text_content:
                             # 解析地號，例如 "A區-1" → block_id = 1, lot_num = 1
                             parts = text_content.split('\n')[0]  # 第一行是地號
