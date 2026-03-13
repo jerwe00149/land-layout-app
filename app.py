@@ -909,8 +909,13 @@ if uploaded_project is not None:
                 if lots_from_dxf:
                     # 讀取 TEXT 圖層的地號標籤
                     lot_labels = {}
-                    for text in msp.query('TEXT[layer=="TEXT"]'):
+                    # 讀取 TEXT 實體
+                    for text in msp.query('TEXT'):
+                        if text.dxf.layer != 'TEXT':
+                            continue
                         text_content = text.dxf.text
+                        # 調試：記錄所有讀到的文字
+                        # st.write(f"DEBUG: {text_content}")
                         if '區-' in text_content:
                             # 解析地號，例如 "A區-1" → block_id = 1, lot_num = 1
                             parts = text_content.split('\n')[0]  # 第一行是地號
@@ -935,6 +940,12 @@ if uploaded_project is not None:
                                 min_dist = dist
                                 best_block_id = block_id
                         lots_with_blocks.append((lot, 0, 0, best_block_id))
+                    
+                    # 調試信息
+                    if lot_labels:
+                        st.sidebar.success(f"✅ 讀取到 {len(lot_labels)} 個地號標籤")
+                    else:
+                        st.sidebar.warning("⚠️ 未讀取到地號標籤，所有地塊預設為 A 區")
                     
                     st.session_state['imported_lots'] = lots_with_blocks
                 
