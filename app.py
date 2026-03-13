@@ -907,8 +907,36 @@ if uploaded_project is not None:
                         lots_from_dxf.append(Polygon(lot_points))
                 
                 if lots_from_dxf:
-                    # 轉換為 (polygon, 0, 0, 1) 格式（arrow_dx=0, arrow_dy=0, block_id=1）
-                    st.session_state['imported_lots'] = [(lot, 0, 0, 1) for lot in lots_from_dxf]
+                    # 讀取 TEXT 圖層的地號標籤
+                    lot_labels = {}
+                    for text in msp.query('TEXT[layer=="TEXT"]'):
+                        text_content = text.dxf.text
+                        if '區-' in text_content:
+                            # 解析地號，例如 "A區-1" → block_id = 1, lot_num = 1
+                            parts = text_content.split('\n')[0]  # 第一行是地號
+                            if '區-' in parts:
+                                block_letter = parts.split('區')[0]
+                                # A→1, B→2, C→3, D→4
+                                block_id = ord(block_letter) - ord('A') + 1
+                                # 獲取文字位置
+                                text_pos = (text.dxf.insert[0]/100, text.dxf.insert[1]/100)
+                                lot_labels[text_pos] = block_id
+                    
+                    # 為每個地塊分配 block_id（根據質心位置找最近的標籤）
+                    lots_with_blocks = []
+                    for lot in lots_from_dxf:
+                        centroid = lot.centroid
+                        # 找最近的標籤
+                        min_dist = float('inf')
+                        best_block_id = 1
+                        for label_pos, block_id in lot_labels.items():
+                            dist = ((centroid.x - label_pos[0])**2 + (centroid.y - label_pos[1])**2)**0.5
+                            if dist < min_dist:
+                                min_dist = dist
+                                best_block_id = block_id
+                        lots_with_blocks.append((lot, 0, 0, best_block_id))
+                    
+                    st.session_state['imported_lots'] = lots_with_blocks
                 
                 # 讀取道路（ROAD 圖層）
                 roads_from_dxf = []
