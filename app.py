@@ -480,6 +480,12 @@ lots, roads = generate_layout(
     roads_info, min_ping, auto_orient, auto_merge, block_params
 , st.session_state.get("custom_lot_widths"))
 
+# 顯示參考圖片（如果有）
+if 'reference_image' in st.session_state:
+    with st.expander("📷 參考圖片（匯入時的原始圖面）", expanded=False):
+        st.image(st.session_state['reference_image'], caption="原始規劃圖面", use_container_width=True)
+        st.caption("💡 可對照此圖微調參數")
+
 fig, ax = plt.subplots(figsize=(10, 7))
 
 # 1. 畫基地外框
@@ -836,7 +842,7 @@ st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
 # 專案載入功能
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📂 載入專案")
-uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.json)", type=['json'], key="project_upload")
+uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.zip 或 .json)", type=['zip', 'json'], key="project_upload")
 
 if uploaded_project is not None:
     # 檢查是否已經載入過這個檔案
@@ -845,7 +851,24 @@ if uploaded_project is not None:
     if st.session_state.get('last_loaded_file') != file_id:
         try:
             import json
-            project_data = json.load(uploaded_project)
+            import zipfile
+            import io
+            
+            # 判斷檔案類型
+            if uploaded_project.name.endswith('.zip'):
+                # ZIP 檔案：解壓並讀取
+                zip_buffer = io.BytesIO(uploaded_project.read())
+                with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                    # 讀取 JSON
+                    json_data = zipf.read('project_params.json')
+                    project_data = json.loads(json_data.decode('utf-8'))
+                    
+                    # 儲存 PNG 圖片到 session_state（作為參考）
+                    if 'layout_plan.png' in zipf.namelist():
+                        st.session_state['reference_image'] = zipf.read('layout_plan.png')
+            else:
+                # JSON 檔案：直接讀取
+                project_data = json.load(uploaded_project)
             
             # 恢復基地座標
             if '基地座標' in project_data:
@@ -871,6 +894,11 @@ if uploaded_project is not None:
             st.session_state['project_loaded'] = True
             
             st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
+            
+            # 如果有參考圖片，顯示提示
+            if 'reference_image' in st.session_state:
+                st.sidebar.info("💡 參考圖片已載入")
+            
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"❌ 載入失敗：{e}")
