@@ -932,8 +932,8 @@ if uploaded_project is not None:
                     # 根據地塊位置自動分配 block_id（4區分配）
                     lots_with_blocks = []
                     
-                    # 如果有 TEXT 標籤，優先使用
-                    if lot_labels:
+                    # 強制使用位置分配（調試用）
+                    if False and lot_labels:
                         for lot in lots_from_dxf:
                             centroid = lot.centroid
                             min_dist = float('inf')
