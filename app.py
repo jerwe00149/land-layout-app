@@ -424,17 +424,6 @@ base_coords = st.session_state.base_coords
 
 base_polygon = Polygon(base_coords)
 
-# 生成按鈕
-with st.sidebar:
-    st.markdown("---")
-    generate_button = st.button("🚀 生成佈局", type="primary", use_container_width=True)
-    if not generate_button and 'layout_generated' not in st.session_state:
-        st.info("💡 設定好參數後，點擊上方按鈕生成佈局")
-        st.stop()
-    
-    if generate_button:
-        st.session_state['layout_generated'] = True
-
 # 預先檢測街廓數量
 lots_preview, roads_preview = generate_layout(
     base_polygon, width_req, depth_req, 
@@ -873,8 +862,12 @@ if uploaded_project is not None:
         if '街廓參數' in project_data and project_data['街廓參數']:
             st.session_state['block_params'] = project_data['街廓參數']
         
+        # 標記為已載入專案，自動生成
+        st.session_state['project_loaded'] = True
+        
         st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
-        st.sidebar.info("💡 參數已恢復，請點擊「生成佈局」")
+        st.sidebar.info("🔄 參數已恢復，佈局已自動生成")
+        st.rerun()
     except Exception as e:
         st.sidebar.error(f"❌ 載入失敗：{e}")
 
