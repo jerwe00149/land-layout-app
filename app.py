@@ -60,6 +60,7 @@ import pandas as pd
 import json
 import ezdxf
 import tempfile
+import zipfile
 import os
 
 def read_plines(doc):
@@ -633,6 +634,76 @@ with col2:
 
 with col3:
     st.info("💡 DXF 可用\nAutoCAD/ZWCAD\n開啟")
+
+
+
+# 專案打包下載
+import zipfile
+import json
+from datetime import datetime
+
+def create_project_zip():
+    """打包所有專案檔案"""
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # 1. 儲存參數設定
+        params = {
+            "建築參數": {
+                "基準面寬": width_req,
+                "基準深度": depth_req,
+                "建蔽率": coverage_ratio,
+                "最小坪數": min_ping,
+                "自動方向": auto_orient,
+                "自動合併": auto_merge
+            },
+            "道路設定": roads_info,
+            "街廓參數": block_params if 'block_params' in locals() else None,
+            "匯出時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        zipf.writestr("project_params.json", json.dumps(params, ensure_ascii=False, indent=2))
+        
+        # 2. DXF 檔案
+        dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+        with open(dxf_file, 'rb') as f:
+            zipf.writestr("layout_plan.dxf", f.read())
+        
+        # 3. PNG 圖片
+        buf_img = io.BytesIO()
+        fig.savefig(buf_img, format="png", dpi=300, bbox_inches='tight')
+        zipf.writestr("layout_plan.png", buf_img.getvalue())
+        
+        # 4. 分析報表（如果有）
+        if 'df_analysis' in locals():
+            zipf.writestr("analysis_report.csv", df_analysis.to_csv(index=False, encoding='utf-8-sig'))
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+# 加入專案下載按鈕
+st.markdown("---")
+st.markdown("### 📦 專案打包下載")
+
+col_p1, col_p2 = st.columns([3, 1])
+with col_p1:
+    project_name = st.text_input("專案名稱", value=f"排平圖專案_{datetime.now().strftime('%Y%m%d')}")
+    
+with col_p2:
+    st.write("")
+    st.write("")
+    if st.button("🎁 打包專案", type="primary", use_container_width=True):
+        with st.spinner("正在打包專案檔案..."):
+            zip_data = create_project_zip()
+            st.download_button(
+                label="💾 下載專案 ZIP",
+                data=zip_data,
+                file_name=f"{project_name}.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+            st.success("✅ 專案打包完成！點擊上方按鈕下載")
+
+st.info("💡 專案 ZIP 包含：參數設定 JSON、DXF 檔案、PNG 圖片、分析報表")
 
 
 # 地號資料編輯器（在圖表顯示後）
