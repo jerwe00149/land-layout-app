@@ -929,19 +929,40 @@ if uploaded_project is not None:
                                 text_pos = (entity.dxf.insert[0]/100, entity.dxf.insert[1]/100)
                                 lot_labels[text_pos] = block_id
                     
-                    # 為每個地塊分配 block_id（根據質心位置找最近的標籤）
+                    # 根據地塊位置自動分配 block_id（4區分配）
                     lots_with_blocks = []
-                    for lot in lots_from_dxf:
-                        centroid = lot.centroid
-                        # 找最近的標籤
-                        min_dist = float('inf')
-                        best_block_id = 1
-                        for label_pos, block_id in lot_labels.items():
-                            dist = ((centroid.x - label_pos[0])**2 + (centroid.y - label_pos[1])**2)**0.5
-                            if dist < min_dist:
-                                min_dist = dist
-                                best_block_id = block_id
-                        lots_with_blocks.append((lot, 0, 0, best_block_id))
+                    
+                    # 如果有 TEXT 標籤，優先使用
+                    if lot_labels:
+                        for lot in lots_from_dxf:
+                            centroid = lot.centroid
+                            min_dist = float('inf')
+                            best_block_id = 1
+                            for label_pos, block_id in lot_labels.items():
+                                dist = ((centroid.x - label_pos[0])**2 + (centroid.y - label_pos[1])**2)**0.5
+                                if dist < min_dist:
+                                    min_dist = dist
+                                    best_block_id = block_id
+                            lots_with_blocks.append((lot, 0, 0, best_block_id))
+                    else:
+                        # 沒有 TEXT 標籤，根據位置自動分配
+                        # 計算所有地塊的中心點
+                        centroids = [(lot, lot.centroid.x, lot.centroid.y) for lot in lots_from_dxf]
+                        
+                        # 找出 X 和 Y 的中位數，作為分界線
+                        x_coords = sorted([c[1] for c in centroids])
+                        y_coords = sorted([c[2] for c in centroids])
+                        x_mid = x_coords[len(x_coords)//2]
+                        y_mid = y_coords[len(y_coords)//2]
+                        
+                        # 根據位置分配街廓 ID
+                        # 左上=1(A), 右上=2(B), 左下=3(C), 右下=4(D)
+                        for lot, cx, cy in centroids:
+                            if cx < x_mid:
+                                block_id = 1 if cy > y_mid else 3  # 左上 A, 左下 C
+                            else:
+                                block_id = 2 if cy > y_mid else 4  # 右上 B, 右下 D
+                            lots_with_blocks.append((lot, 0, 0, block_id))
                     
                     # 調試信息
                     if lot_labels:
