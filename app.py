@@ -531,19 +531,19 @@ for lot_tuple in lots:
         # 判斷長邊方向
         if lot_width > lot_height:
             # 水平長邊
-            # 寬度標註（下方）
-            dim_y = b_miny - 1.2
+            # 寬度標註（內側下方）
+            dim_y = b_miny + 1.0
             # 尺寸線
             ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='red', linewidth=1.0, zorder=7)
             # 端點標記
             ax.plot([b_minx, b_minx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
             ax.plot([b_maxx, b_maxx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
             # 文字
-            ax.text(centroid.x, dim_y - 0.4, f"{lot_width:.1f}m", 
+            ax.text(centroid.x, dim_y + 0.4, f"{lot_width:.1f}m", 
                    ha='center', va='top', fontsize=6, color='red', fontweight='bold', zorder=8)
             
-            # 高度標註（左側）
-            dim_x = b_minx - 1.2
+            # 高度標註（內側左側）
+            dim_x = b_minx + 1.0
             # 尺寸線
             ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='red', linewidth=1.0, zorder=7)
             # 端點標記
@@ -554,8 +554,8 @@ for lot_tuple in lots:
                    ha='right', va='center', fontsize=6, color='red', fontweight='bold', rotation=90, zorder=8)
         else:
             # 垂直長邊
-            # 高度標註（右側）
-            dim_x = b_maxx + 1.2
+            # 高度標註（內側右側）
+            dim_x = b_maxx - 1.0
             # 尺寸線
             ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='red', linewidth=1.0, zorder=7)
             # 端點標記
@@ -565,15 +565,15 @@ for lot_tuple in lots:
             ax.text(dim_x + 0.4, centroid.y, f"{lot_height:.1f}m", 
                    ha='left', va='center', fontsize=6, color='red', fontweight='bold', rotation=90, zorder=8)
             
-            # 寬度標註（下方）
-            dim_y = b_miny - 1.2
+            # 寬度標註（內側下方）
+            dim_y = b_miny + 1.0
             # 尺寸線
             ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='red', linewidth=1.0, zorder=7)
             # 端點標記
             ax.plot([b_minx, b_minx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
             ax.plot([b_maxx, b_maxx], [dim_y - 0.2, dim_y + 0.2], color='red', linewidth=1.0, zorder=7)
             # 文字
-            ax.text(centroid.x, dim_y - 0.4, f"{lot_width:.1f}m", 
+            ax.text(centroid.x, dim_y + 0.4, f"{lot_width:.1f}m", 
                    ha='center', va='top', fontsize=6, color='red', fontweight='bold', zorder=8)
 
         
