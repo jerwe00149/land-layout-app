@@ -671,6 +671,10 @@ dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
 with open(dxf_file, "rb") as file:
     btn = st.sidebar.download_button(
         label="下載 DXF 檔 (支援分圖層, 可轉 DWG)",
+        data=file,
+        file_name="land_layout.dxf",
+        mime="application/dxf"
+    )
 
 # 專案打包功能
 def create_project_zip():
