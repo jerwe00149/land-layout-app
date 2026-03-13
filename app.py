@@ -569,11 +569,14 @@ for lot_tuple in lots:
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
         # 標註地號
         text_label = f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p"
-        ax.text(centroid.x, centroid.y, text_label, ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
+        # 確保標籤可見（尤其是 D 區）
+        label_color = 'black'
+        label_bg = dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor='none', alpha=0.7)
+        ax.text(centroid.x, centroid.y, text_label, ha='center', va='center', 
+                fontsize=6, fontweight='bold', rotation=text_rot, color=label_color, 
+                bbox=label_bg, zorder=15)
         
-        # 調試：如果是 D 區，額外標記
-        if block_id == 4:
-            ax.plot(centroid.x, centroid.y, 'ro', markersize=8, zorder=20)  # 紅點標記
+        
 
         # 標註長寬尺寸（紅色，帶尺寸線）
         b_minx, b_miny, b_maxx, b_maxy = lot.bounds
