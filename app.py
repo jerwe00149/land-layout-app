@@ -523,89 +523,29 @@ for lot_tuple in lots:
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
         ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
 
-        # 標註該地號的最長邊尺寸
-        # 處理 MultiPolygon 情況
-        if lot.geom_type == 'MultiPolygon':
-            # 取最大的 Polygon
-            lot_for_dim = max(lot.geoms, key=lambda p: p.area)
+        # 標註長寬尺寸
+        b_minx, b_miny, b_maxx, b_maxy = lot.bounds
+        lot_width = b_maxx - b_minx
+        lot_height = b_maxy - b_miny
+        
+        # 判斷長邊方向
+        if lot_width > lot_height:
+            # 水平長邊
+            # 寬度標註（下方）
+            ax.text(centroid.x, b_miny - 0.8, f"{lot_width:.1f}m", 
+                   ha='center', va='top', fontsize=6, color='green', fontweight='bold', zorder=7)
+            # 高度標註（左側）
+            ax.text(b_minx - 0.8, centroid.y, f"{lot_height:.1f}m", 
+                   ha='right', va='center', fontsize=6, color='green', fontweight='bold', rotation=90, zorder=7)
         else:
-            lot_for_dim = lot
-        
-        lot_coords = list(lot_for_dim.exterior.coords)
-        max_edge_len = 0
-        max_edge_p1 = None
-        max_edge_p2 = None
-        
-        for i in range(len(lot_coords) - 1):
-            p1 = lot_coords[i]
-            p2 = lot_coords[i + 1]
-            edge_len = ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
-            if edge_len > max_edge_len:
-                max_edge_len = edge_len
-                max_edge_p1 = p1
-                max_edge_p2 = p2
-        
-        if max_edge_p1 and max_edge_len > 3:  # 只標註超過3m的邊
-            mid_x = (max_edge_p1[0] + max_edge_p2[0]) / 2
-            mid_y = (max_edge_p1[1] + max_edge_p2[1]) / 2
-            
-            # 計算邊的角度
-            dx = max_edge_p2[0] - max_edge_p1[0]
-            dy = max_edge_p2[1] - max_edge_p1[1]
-            angle = math.degrees(math.atan2(dy, dx))
-            
-            # 標註最長邊
-            ax.plot([max_edge_p1[0], max_edge_p2[0]], 
-                   [max_edge_p1[1], max_edge_p2[1]], 
-                   color='green', linewidth=1.5, linestyle='-', zorder=4)
-            
-            # 文字標註（放在最長邊的外側，垂直於邊往外）
-            edge_mid_x = (max_edge_p1[0] + max_edge_p2[0]) / 2
-            edge_mid_y = (max_edge_p1[1] + max_edge_p2[1]) / 2
-            
-            # 計算邊的方向向量
-            dx = max_edge_p2[0] - max_edge_p1[0]
-            dy = max_edge_p2[1] - max_edge_p1[1]
-            
-            # 垂直向量（逆時針旋轉90度）
-            perp_x = -dy
-            perp_y = dx
-            perp_len = (perp_x**2 + perp_y**2)**0.5
-            
-            if perp_len > 0:
-                # 標準化
-                perp_x = perp_x / perp_len
-                perp_y = perp_y / perp_len
-            
-            # 判斷哪個方向是外側（遠離基地中心）
-            to_center_x = centroid.x - edge_mid_x
-            to_center_y = centroid.y - edge_mid_y
-            
-            # 點積判斷方向
-            dot = perp_x * to_center_x + perp_y * to_center_y
-            
-            # 如果垂直向量指向內側，反轉它
-            if dot > 0:
-                perp_x = -perp_x
-                perp_y = -perp_y
-            
-            # 往外偏移1.5公尺
-            offset_x = perp_x * 1.5
-            offset_y = perp_y * 1.5
-            # 計算旋轉角度（與邊平行）
-            text_angle = math.degrees(math.atan2(dy, dx))
-            # 調整角度使文字保持可讀（不上下顛倒）
-            if text_angle > 90:
-                text_angle -= 180
-            elif text_angle < -90:
-                text_angle += 180
-            
-            ax.text(edge_mid_x + offset_x, edge_mid_y + offset_y, 
-                   f"{max_edge_len:.1f}m", 
-                   ha='center', va='center', 
-                   fontsize=7, color='green', fontweight='bold',
-                   rotation=text_angle,
-                   zorder=6)
+            # 垂直長邊
+            # 高度標註（右側）
+            ax.text(b_maxx + 0.8, centroid.y, f"{lot_height:.1f}m", 
+                   ha='left', va='center', fontsize=6, color='green', fontweight='bold', rotation=90, zorder=7)
+            # 寬度標註（下方）
+            ax.text(centroid.x, b_miny - 0.8, f"{lot_width:.1f}m", 
+                   ha='center', va='top', fontsize=6, color='green', fontweight='bold', zorder=7)
+
         
         # 繪製尺寸標示(面寬 - 標示在建築物短向)
         b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
