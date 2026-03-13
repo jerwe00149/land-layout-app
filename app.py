@@ -811,6 +811,7 @@ def create_project_zip():
             },
             "道路設定": roads_info,
             "街廓參數": block_params if 'block_params' in locals() else None,
+            "地塊寬度調整": st.session_state.get('custom_lot_widths', None),
             "匯出時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         zipf.writestr("project_params.json", json.dumps(params, ensure_ascii=False, indent=2))
@@ -899,6 +900,10 @@ if uploaded_project is not None:
             
             if '街廓參數' in project_data and project_data['街廓參數']:
                 st.session_state['block_params'] = project_data['街廓參數']
+            
+            # 恢復地塊寬度調整
+            if '地塊寬度調整' in project_data and project_data['地塊寬度調整']:
+                st.session_state['custom_lot_widths'] = project_data['地塊寬度調整']
             
             # 記錄已載入的檔案
             st.session_state['last_loaded_file'] = file_id
