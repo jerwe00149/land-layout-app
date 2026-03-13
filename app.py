@@ -424,6 +424,17 @@ base_coords = st.session_state.base_coords
 
 base_polygon = Polygon(base_coords)
 
+# 生成按鈕
+with st.sidebar:
+    st.markdown("---")
+    generate_button = st.button("🚀 生成佈局", type="primary", use_container_width=True)
+    if not generate_button and 'layout_generated' not in st.session_state:
+        st.info("💡 設定好參數後，點擊上方按鈕生成佈局")
+        st.stop()
+    
+    if generate_button:
+        st.session_state['layout_generated'] = True
+
 # 預先檢測街廓數量
 lots_preview, roads_preview = generate_layout(
     base_polygon, width_req, depth_req, 
