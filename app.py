@@ -637,73 +637,7 @@ with col3:
 
 
 
-# 專案打包下載
-import zipfile
-import json
-from datetime import datetime
 
-def create_project_zip():
-    """打包所有專案檔案"""
-    zip_buffer = io.BytesIO()
-    
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # 1. 儲存參數設定
-        params = {
-            "建築參數": {
-                "基準面寬": width_req,
-                "基準深度": depth_req,
-                "建蔽率": coverage_ratio,
-                "最小坪數": min_ping,
-                "自動方向": auto_orient,
-                "自動合併": auto_merge
-            },
-            "道路設定": roads_info,
-            "街廓參數": block_params if 'block_params' in locals() else None,
-            "匯出時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        zipf.writestr("project_params.json", json.dumps(params, ensure_ascii=False, indent=2))
-        
-        # 2. DXF 檔案
-        dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
-        with open(dxf_file, 'rb') as f:
-            zipf.writestr("layout_plan.dxf", f.read())
-        
-        # 3. PNG 圖片
-        buf_img = io.BytesIO()
-        fig.savefig(buf_img, format="png", dpi=300, bbox_inches='tight')
-        zipf.writestr("layout_plan.png", buf_img.getvalue())
-        
-        # 4. 分析報表（如果有）
-        if 'df_analysis' in locals():
-            zipf.writestr("analysis_report.csv", df_analysis.to_csv(index=False, encoding='utf-8-sig'))
-    
-    zip_buffer.seek(0)
-    return zip_buffer.getvalue()
-
-# 加入專案下載按鈕
-st.markdown("---")
-st.markdown("### 📦 專案打包下載")
-
-col_p1, col_p2 = st.columns([3, 1])
-with col_p1:
-    project_name = st.text_input("專案名稱", value=f"排平圖專案_{datetime.now().strftime('%Y%m%d')}")
-    
-with col_p2:
-    st.write("")
-    st.write("")
-    if st.button("🎁 打包專案", type="primary", use_container_width=True):
-        with st.spinner("正在打包專案檔案..."):
-            zip_data = create_project_zip()
-            st.download_button(
-                label="💾 下載專案 ZIP",
-                data=zip_data,
-                file_name=f"{project_name}.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
-            st.success("✅ 專案打包完成！點擊上方按鈕下載")
-
-st.info("💡 專案 ZIP 包含：參數設定 JSON、DXF 檔案、PNG 圖片、分析報表")
 
 
 # 地號資料編輯器（在圖表顯示後）
@@ -765,7 +699,65 @@ if lots:
 dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
 with open(dxf_file, "rb") as file:
     btn = st.sidebar.download_button(
-        label="下載 DXF 檔 (支援分圖層, 可轉 DWG)",
+        label="下載 DXF 檔 (支援分圖層, 可轉 DWG)
+
+# 專案打包功能
+def create_project_zip():
+    """打包所有專案檔案"""
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # 1. 儲存參數設定
+        params = {
+            "建築參數": {
+                "基準面寬": width_req,
+                "基準深度": depth_req,
+                "建蔽率": coverage_ratio,
+                "最小坪數": min_ping,
+                "自動方向": auto_orient,
+                "自動合併": auto_merge
+            },
+            "道路設定": roads_info,
+            "街廓參數": block_params if 'block_params' in locals() else None,
+            "匯出時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        zipf.writestr("project_params.json", json.dumps(params, ensure_ascii=False, indent=2))
+        
+        # 2. DXF 檔案
+        dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+        with open(dxf_file, 'rb') as f:
+            zipf.writestr("layout_plan.dxf", f.read())
+        
+        # 3. PNG 圖片
+        buf_img = io.BytesIO()
+        fig.savefig(buf_img, format="png", dpi=300, bbox_inches='tight')
+        zipf.writestr("layout_plan.png", buf_img.getvalue())
+        
+        # 4. 分析報表（如果有）
+        if 'df_analysis' in locals():
+            zipf.writestr("analysis_report.csv", df_analysis.to_csv(index=False, encoding='utf-8-sig'))
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📦 專案打包")
+from datetime import datetime
+project_name = st.sidebar.text_input("專案名稱", value=f"排平圖_{datetime.now().strftime('%Y%m%d')}", key="project_name_input")
+
+if st.sidebar.button("🎁 打包下載", type="primary", use_container_width=True):
+    with st.spinner("正在打包..."):
+        zip_data = create_project_zip()
+        st.sidebar.download_button(
+            label="💾 下載 ZIP",
+            data=zip_data,
+            file_name=f"{project_name}.zip",
+            mime="application/zip",
+            use_container_width=True,
+            key="download_zip_btn"
+        )
+st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
+",
         data=file,
         file_name="land_layout.dxf",
         mime="application/dxf"
