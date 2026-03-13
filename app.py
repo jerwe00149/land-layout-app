@@ -732,8 +732,3 @@ if st.sidebar.button("🎁 打包下載", type="primary", use_container_width=Tr
             key="download_zip_btn"
         )
 st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
-",
-        data=file,
-        file_name="land_layout.dxf",
-        mime="application/dxf"
-    )
