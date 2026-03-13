@@ -351,13 +351,13 @@ st.markdown("## 🏗️ 建築師排平圖系統 <span style='font-size: 14px; f
 
 with st.sidebar:
     st.markdown("### 1. 建築參數")
-    width_req = st.number_input("基準面寬 (公尺)", min_value=3.0, max_value=20.0, value=5.0, step=0.1)
-    depth_req = st.number_input("基準深度 (公尺)", min_value=5.0, max_value=50.0, value=20.0, step=0.1)
-    coverage_ratio = st.slider("建蔽率 (%)", min_value=40, max_value=80, value=60, step=5)
-    min_ping = st.number_input("最小可建地坪", min_value=5.0, max_value=50.0, value=20.0, step=1.0)
+    width_req = st.number_input("基準面寬 (公尺)", min_value=3.0, max_value=20.0, value=st.session_state.get("width_req", 5.0), step=0.1)
+    depth_req = st.number_input("基準深度 (公尺)", min_value=5.0, max_value=50.0, value=st.session_state.get("depth_req", 20.0), step=0.1)
+    coverage_ratio = st.slider("建蔽率 (%)", min_value=0.0, max_value=100.0, value=st.session_state.get("coverage_ratio", 0.6) * 100, step=1.0) / 100
+    min_ping = st.number_input("最小可建地坪", min_value=5.0, max_value=50.0, value=st.session_state.get("min_ping", 20.0), step=1.0)
     
     st.markdown("### 2. 土地檢討")
-    auto_orient = st.checkbox("依街廓形狀自動轉向", value=True)
+    auto_orient = st.checkbox("依街廓形狀自動轉向", value=st.session_state.get("auto_orient", True))
     auto_merge = st.checkbox("自動吸收邊角 (確保無剩餘碎地)", value=True)
     
     st.markdown("### 3. 手動配置多條道路")
