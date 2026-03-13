@@ -467,10 +467,21 @@ if num_blocks > 1:
         st.markdown(f"### 4. 各街廓參數設定 ({num_blocks} 個街廓)")
         
         block_params = {}
+        # 從 session_state 讀取已保存的街廓參數
+        saved_block_params = st.session_state.get('block_params', {})
+        
         for bid in sorted(block_ids):
             with st.expander(f"{block_id_to_letter(bid)}區 參數"):
-                bw = st.number_input(f"{block_id_to_letter(bid)}區 面寬 (m)", min_value=3.0, max_value=20.0, value=width_req, step=0.1, key=f"bw_{bid}")
-                bd = st.number_input(f"{block_id_to_letter(bid)}區 深度 (m)", min_value=5.0, max_value=50.0, value=depth_req, step=0.1, key=f"bd_{bid}")
+                # 如果有保存的參數，使用之；否則使用預設值
+                if str(bid) in saved_block_params:
+                    default_w, default_d = saved_block_params[str(bid)]
+                elif bid in saved_block_params:
+                    default_w, default_d = saved_block_params[bid]
+                else:
+                    default_w, default_d = width_req, depth_req
+                
+                bw = st.number_input(f"{block_id_to_letter(bid)}區 面寬 (m)", min_value=3.0, max_value=20.0, value=float(default_w), step=0.1, key=f"bw_{bid}")
+                bd = st.number_input(f"{block_id_to_letter(bid)}區 深度 (m)", min_value=5.0, max_value=50.0, value=float(default_d), step=0.1, key=f"bd_{bid}")
                 block_params[bid] = (bw, bd)
 else:
     block_params = None
