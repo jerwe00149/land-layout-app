@@ -559,9 +559,27 @@ for lot_tuple in lots:
                    [max_edge_p1[1], max_edge_p2[1]], 
                    color='green', linewidth=1.5, linestyle='-', zorder=4)
             
-            # 文字標註（稍微偏移避免重疊）
-            offset_x = -dy / max_edge_len * 0.5
-            offset_y = dx / max_edge_len * 0.5
+            # 文字標註（放在基地外側後方）
+            # 計算外側方向（遠離基地中心）
+            lot_center_x = centroid.x
+            lot_center_y = centroid.y
+            
+            # 邊的中點
+            edge_mid_x = (max_edge_p1[0] + max_edge_p2[0]) / 2
+            edge_mid_y = (max_edge_p1[1] + max_edge_p2[1]) / 2
+            
+            # 從中心指向邊的向量
+            to_edge_x = edge_mid_x - lot_center_x
+            to_edge_y = edge_mid_y - lot_center_y
+            to_edge_len = (to_edge_x**2 + to_edge_y**2)**0.5
+            
+            if to_edge_len > 0:
+                # 往外偏移2公尺
+                offset_x = (to_edge_x / to_edge_len) * 2.0
+                offset_y = (to_edge_y / to_edge_len) * 2.0
+            else:
+                offset_x = 0
+                offset_y = 0
             # 計算旋轉角度（與邊平行）
             text_angle = angle if abs(angle) < 90 else angle - 180
             
