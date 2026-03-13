@@ -1,64 +1,27 @@
 import streamlit as st
 
-# ========== 登入驗證 ==========
-def check_password():
-    """返回 True 如果用戶輸入了正確的密碼"""
-    
-    def password_entered():
-        """檢查密碼是否正確"""
-        if (st.session_state["username"] == "admin" and
-            st.session_state["password"] == "zebe2026"):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]
-            del st.session_state["username"]
-        else:
-            st.session_state["password_correct"] = False
+# ========== 登入驗證（簡化版）==========
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
-    if st.session_state.get("password_correct", False):
-        return True
-
-    # 顯示登入介面
+if not st.session_state.authenticated:
     st.markdown("## 🔐 建築師排平圖系統")
     st.markdown("### 請登入")
-    st.text_input("使用者名稱", key="username")
-    st.text_input("密碼", type="password", key="password")
-    st.button("登入", on_click=password_entered)
     
-    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-        st.error("❌ 帳號或密碼錯誤")
+    username = st.text_input("使用者名稱", value="")
+    password = st.text_input("密碼", type="password", value="")
     
-    st.info("💡 預設帳號: admin / 密碼: zebe2026")
-    return False
-
-# 檢查登入
-if not check_password():
+    if st.button("登入"):
+        if username == "admin" and password == "zebe2026":
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("❌ 帳號或密碼錯誤")
+            st.info("💡 預設帳號: admin / 密碼: zebe2026")
+    
     st.stop()
 
 # ========== 以下是原始程式 ==========
-import json
-import streamlit as st
-
-# 資料持久化
-DATA_FILE = '/tmp/land_data.json'
-
-def load_saved_data():
-    """載入保存的地號資料"""
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
-
-def save_data(data):
-    """保存地號資料"""
-    try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        st.error(f"保存失敗: {e}")
-
 # 程式啟動時載入資料
 if 'lots_data' not in st.session_state:
     saved = load_saved_data()
