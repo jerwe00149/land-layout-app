@@ -486,10 +486,18 @@ if num_blocks > 1:
 else:
     block_params = None
 
-lots, roads = generate_layout(
-    base_polygon, width_req, depth_req, 
-    roads_info, min_ping, auto_orient, auto_merge, block_params
-, st.session_state.get("custom_lot_widths"))
+# 檢查是否從 DXF 載入
+if st.session_state.get('loaded_from_dxf', False):
+    # 使用 DXF 的幾何
+    lots = st.session_state.get('imported_lots', [])
+    roads = st.session_state.get('imported_roads', [])
+    st.info("📂 使用 DXF 匯入的幾何（原始佈局）")
+else:
+    # 使用參數生成
+    lots, roads = generate_layout(
+        base_polygon, width_req, depth_req, 
+        roads_info, min_ping, auto_orient, auto_merge, block_params
+    , st.session_state.get("custom_lot_widths"))
 
 # 顯示參考圖片（如果有）
 if 'reference_image' in st.session_state:
@@ -854,7 +862,7 @@ st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
 # 專案載入功能
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📂 載入專案")
-uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.zip 或 .json)", type=['zip', 'json'], key="project_upload")
+uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.zip / .json / .dxf)", type=['zip', 'json', 'dxf'], key="project_upload")
 
 if uploaded_project is not None:
     # 檢查是否已經載入過這個檔案
@@ -867,7 +875,60 @@ if uploaded_project is not None:
             import io
             
             # 判斷檔案類型
-            if uploaded_project.name.endswith('.zip'):
+            if uploaded_project.name.endswith('.dxf'):
+                # DXF 檔案：直接讀取幾何
+                import ezdxf
+                import tempfile
+                
+                # 儲存上傳的 DXF 到臨時檔案
+                temp_dxf = tempfile.NamedTemporaryFile(delete=False, suffix='.dxf')
+                temp_dxf.write(uploaded_project.read())
+                temp_dxf.close()
+                
+                # 讀取 DXF
+                doc = ezdxf.readfile(temp_dxf.name)
+                msp = doc.modelspace()
+                
+                # 讀取基地邊界（BASE 圖層）
+                base_points = []
+                for entity in msp.query('LWPOLYLINE[layer=="BASE"]'):
+                    base_points = [(p[0], p[1]) for p in entity.get_points()]
+                    break
+                
+                if base_points:
+                    st.session_state['base_coords'] = base_points
+                
+                # 讀取地塊（LOT 圖層）
+                lots_from_dxf = []
+                for entity in msp.query('LWPOLYLINE[layer=="LOT"]'):
+                    lot_points = [(p[0], p[1]) for p in entity.get_points()]
+                    if len(lot_points) >= 3:
+                        lots_from_dxf.append(Polygon(lot_points))
+                
+                if lots_from_dxf:
+                    st.session_state['imported_lots'] = lots_from_dxf
+                
+                # 讀取道路（ROAD 圖層）
+                roads_from_dxf = []
+                for entity in msp.query('LWPOLYLINE[layer=="ROAD"]'):
+                    road_points = [(p[0], p[1]) for p in entity.get_points()]
+                    if len(road_points) >= 3:
+                        roads_from_dxf.append(Polygon(road_points))
+                
+                if roads_from_dxf:
+                    st.session_state['imported_roads'] = roads_from_dxf
+                
+                # 清理臨時檔案
+                import os
+                os.unlink(temp_dxf.name)
+                
+                # 標記為已載入 DXF
+                st.session_state['loaded_from_dxf'] = True
+                
+                st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
+                st.sidebar.info("💡 使用 DXF 原始佈局，不會重新生成")
+                
+            elif uploaded_project.name.endswith('.zip'):
                 # ZIP 檔案：解壓並讀取
                 zip_buffer = io.BytesIO(uploaded_project.read())
                 with zipfile.ZipFile(zip_buffer, 'r') as zipf:
@@ -921,4 +982,12 @@ if uploaded_project is not None:
     else:
         st.sidebar.info(f"📂 專案已載入：{uploaded_project.name}")
 
-st.sidebar.caption("💡 上傳之前匯出的 project_params.json")
+st.sidebar.caption("💡 上傳 ZIP/JSON 或 DXF 檔案")
+
+# 清除 DXF 匯入
+if st.session_state.get('loaded_from_dxf', False):
+    if st.sidebar.button("🔄 切換回參數生成模式", use_container_width=True):
+        st.session_state['loaded_from_dxf'] = False
+        st.session_state.pop('imported_lots', None)
+        st.session_state.pop('imported_roads', None)
+        st.rerun()
