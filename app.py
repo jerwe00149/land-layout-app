@@ -159,11 +159,11 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
             
         lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
         if abs(arrow_dx) > abs(arrow_dy):
-            xf = coverage_ratio/100.0
+            xf = coverage_ratio
             yf = 1.0
         else:
             xf = 1.0
-            yf = coverage_ratio/100.0
+            yf = coverage_ratio
             
         build_poly = shapely.affinity.scale(lot, xfact=xf, yfact=yf, origin='centroid')
         build_poly = build_poly.intersection(lot)
@@ -489,14 +489,14 @@ for lot_tuple in lots:
         lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
         if abs(arrow_dx) > abs(arrow_dy):
             # faces left/right -> scale X
-            xf = coverage_ratio/100.0
+            xf = coverage_ratio
             yf = 1.0
             text_rot = 0
             lot_width = lot_maxy - lot_miny
         else:
             # faces up/down -> scale Y
             xf = 1.0
-            yf = coverage_ratio/100.0
+            yf = coverage_ratio
             text_rot = 90
             lot_width = lot_maxx - lot_minx
         
