@@ -874,8 +874,9 @@ if uploaded_project is not None:
             import zipfile
             import io
             
-            # 判斷檔案類型
-            if uploaded_project.name.endswith('.dxf'):
+            is_dxf = uploaded_project.name.endswith('.dxf')
+            
+            if is_dxf:
                 # DXF 檔案：直接讀取幾何
                 import ezdxf
                 import tempfile
@@ -924,59 +925,62 @@ if uploaded_project is not None:
                 
                 # 標記為已載入 DXF
                 st.session_state['loaded_from_dxf'] = True
+                st.session_state['last_loaded_file'] = file_id
                 
                 st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
                 st.sidebar.info("💡 使用 DXF 原始佈局，不會重新生成")
-                
-            elif uploaded_project.name.endswith('.zip'):
-                # ZIP 檔案：解壓並讀取
-                zip_buffer = io.BytesIO(uploaded_project.read())
-                with zipfile.ZipFile(zip_buffer, 'r') as zipf:
-                    # 讀取 JSON
-                    json_data = zipf.read('project_params.json')
-                    project_data = json.loads(json_data.decode('utf-8'))
-                    
-                    # 儲存 PNG 圖片到 session_state（作為參考）
-                    if 'layout_plan.png' in zipf.namelist():
-                        st.session_state['reference_image'] = zipf.read('layout_plan.png')
+                st.rerun()
             else:
-                # JSON 檔案：直接讀取
-                project_data = json.load(uploaded_project)
-            
-            # 恢復基地座標
-            if '基地座標' in project_data:
-                st.session_state['base_coords'] = [tuple(coord) for coord in project_data['基地座標']]
-            
-            if '建築參數' in project_data:
-                params = project_data['建築參數']
-                st.session_state['width_req'] = params.get('基準面寬', 5.0)
-                st.session_state['depth_req'] = params.get('基準深度', 20.0)
-                st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
-                st.session_state['min_ping'] = params.get('最小坪數', 20.0)
-                st.session_state['auto_orient'] = params.get('自動方向', True)
-                st.session_state['auto_merge'] = params.get('自動合併', False)
-            
-            if '道路設定' in project_data:
-                st.session_state['roads_info'] = project_data['道路設定']
-            
-            if '街廓參數' in project_data and project_data['街廓參數']:
-                st.session_state['block_params'] = project_data['街廓參數']
-            
-            # 恢復地塊寬度調整
-            if '地塊寬度調整' in project_data and project_data['地塊寬度調整']:
-                st.session_state['custom_lot_widths'] = project_data['地塊寬度調整']
-            
-            # 記錄已載入的檔案
-            st.session_state['last_loaded_file'] = file_id
-            st.session_state['project_loaded'] = True
-            
-            st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
-            
-            # 如果有參考圖片，顯示提示
-            if 'reference_image' in st.session_state:
-                st.sidebar.info("💡 參考圖片已載入")
-            
-            st.rerun()
+                # ZIP 或 JSON
+                if uploaded_project.name.endswith('.zip'):
+                    # ZIP 檔案：解壓並讀取
+                    zip_buffer = io.BytesIO(uploaded_project.read())
+                    with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                        # 讀取 JSON
+                        json_data = zipf.read('project_params.json')
+                        project_data = json.loads(json_data.decode('utf-8'))
+                        
+                        # 儲存 PNG 圖片到 session_state（作為參考）
+                        if 'layout_plan.png' in zipf.namelist():
+                            st.session_state['reference_image'] = zipf.read('layout_plan.png')
+                else:
+                    # JSON 檔案：直接讀取
+                    project_data = json.load(uploaded_project)
+                
+                # 恢復參數
+                if '基地座標' in project_data:
+                    st.session_state['base_coords'] = [tuple(coord) for coord in project_data['基地座標']]
+                
+                if '建築參數' in project_data:
+                    params = project_data['建築參數']
+                    st.session_state['width_req'] = params.get('基準面寬', 5.0)
+                    st.session_state['depth_req'] = params.get('基準深度', 20.0)
+                    st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
+                    st.session_state['min_ping'] = params.get('最小坪數', 20.0)
+                    st.session_state['auto_orient'] = params.get('自動方向', True)
+                    st.session_state['auto_merge'] = params.get('自動合併', False)
+                
+                if '道路設定' in project_data:
+                    st.session_state['roads_info'] = project_data['道路設定']
+                
+                if '街廓參數' in project_data and project_data['街廓參數']:
+                    st.session_state['block_params'] = project_data['街廓參數']
+                
+                # 恢復地塊寬度調整
+                if '地塊寬度調整' in project_data and project_data['地塊寬度調整']:
+                    st.session_state['custom_lot_widths'] = project_data['地塊寬度調整']
+                
+                # 記錄已載入的檔案
+                st.session_state['last_loaded_file'] = file_id
+                st.session_state['project_loaded'] = True
+                
+                st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
+                
+                # 如果有參考圖片，顯示提示
+                if 'reference_image' in st.session_state:
+                    st.sidebar.info("💡 參考圖片已載入")
+                
+                st.rerun()
         except Exception as e:
             st.sidebar.error(f"❌ 載入失敗：{e}")
     else:
