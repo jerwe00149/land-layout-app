@@ -36,6 +36,7 @@ def block_id_to_letter(block_id):
     return chr(64 + block_id)  # 65 is 'A'
 
 
+import math
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, box
 import shapely.ops
@@ -521,6 +522,45 @@ for lot_tuple in lots:
         build_ping = build_poly.area * 0.3025
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
         ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
+
+        # 標註該地號的最長邊尺寸
+        lot_coords = list(lot.exterior.coords)
+        max_edge_len = 0
+        max_edge_p1 = None
+        max_edge_p2 = None
+        
+        for i in range(len(lot_coords) - 1):
+            p1 = lot_coords[i]
+            p2 = lot_coords[i + 1]
+            edge_len = ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
+            if edge_len > max_edge_len:
+                max_edge_len = edge_len
+                max_edge_p1 = p1
+                max_edge_p2 = p2
+        
+        if max_edge_p1 and max_edge_len > 3:  # 只標註超過3m的邊
+            mid_x = (max_edge_p1[0] + max_edge_p2[0]) / 2
+            mid_y = (max_edge_p1[1] + max_edge_p2[1]) / 2
+            
+            # 計算邊的角度
+            dx = max_edge_p2[0] - max_edge_p1[0]
+            dy = max_edge_p2[1] - max_edge_p1[1]
+            angle = math.degrees(math.atan2(dy, dx))
+            
+            # 標註最長邊
+            ax.plot([max_edge_p1[0], max_edge_p2[0]], 
+                   [max_edge_p1[1], max_edge_p2[1]], 
+                   color='red', linewidth=1.5, linestyle='-', zorder=4)
+            
+            # 文字標註（稍微偏移避免重疊）
+            offset_x = -dy / max_edge_len * 0.5
+            offset_y = dx / max_edge_len * 0.5
+            ax.text(mid_x + offset_x, mid_y + offset_y, 
+                   f"{max_edge_len:.1f}m", 
+                   ha='center', va='center', 
+                   fontsize=4, color='red', fontweight='bold',
+                   bbox=dict(facecolor='white', edgecolor='red', pad=0.3, alpha=0.8),
+                   zorder=6)
         
         # 繪製尺寸標示(面寬 - 標示在建築物短向)
         b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
