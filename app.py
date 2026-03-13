@@ -361,7 +361,7 @@ with st.sidebar:
     auto_merge = st.checkbox("自動吸收邊角 (確保無剩餘碎地)", value=True)
     
     st.markdown("### 3. 手動配置多條道路")
-    roads_info = []
+    roads_info = st.session_state.get("roads_info", [])
     
     col_v, col_h = st.columns(2)
     with col_v:
