@@ -557,7 +557,7 @@ for lot_tuple in lots:
             # 標註最長邊
             ax.plot([max_edge_p1[0], max_edge_p2[0]], 
                    [max_edge_p1[1], max_edge_p2[1]], 
-                   color='red', linewidth=1.5, linestyle='-', zorder=4)
+                   color='green', linewidth=1.5, linestyle='-', zorder=4)
             
             # 文字標註（稍微偏移避免重疊）
             offset_x = -dy / max_edge_len * 0.5
@@ -565,8 +565,8 @@ for lot_tuple in lots:
             ax.text(mid_x + offset_x, mid_y + offset_y, 
                    f"{max_edge_len:.1f}m", 
                    ha='center', va='center', 
-                   fontsize=4, color='red', fontweight='bold',
-                   bbox=dict(facecolor='white', edgecolor='red', pad=0.3, alpha=0.8),
+                   fontsize=6, color='green', fontweight='bold',
+                   bbox=dict(facecolor='white', edgecolor='green', pad=0.4, alpha=0.9),
                    zorder=6)
         
         # 繪製尺寸標示(面寬 - 標示在建築物短向)
@@ -575,23 +575,23 @@ for lot_tuple in lots:
             # 道路在左右側，建築物短向(面寬)在 Y 軸
             dim_x = b_minx if arrow_dx < 0 else b_maxx
             b_width = b_maxy - b_miny
-            ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='darkred', linewidth=1.0, zorder=6)
-            ax.scatter([dim_x, dim_x], [b_miny, b_maxy], color='darkred', s=10, marker='|', zorder=6)
-            ax.text(dim_x, centroid.y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', rotation=90, bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
+        # ax.plot([dim_x, dim_x], [b_miny, b_maxy], color='darkred', linewidth=1.0, zorder=6)
+        # ax.scatter([dim_x, dim_x], [b_miny, b_maxy], color='darkred', s=10, marker='|', zorder=6)
+        # ax.text(dim_x, centroid.y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', rotation=90, bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
         else:
             # 道路在上下側，建築物短向(面寬)在 X 軸
             dim_y = b_miny if arrow_dy < 0 else b_maxy
             b_width = b_maxx - b_minx
-            ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='darkred', linewidth=1.0, zorder=6)
-            ax.scatter([b_minx, b_maxx], [dim_y, dim_y], color='darkred', s=10, marker='_', zorder=6)
-            ax.text(centroid.x, dim_y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
+        # ax.plot([b_minx, b_maxx], [dim_y, dim_y], color='darkred', linewidth=1.0, zorder=6)
+        # ax.scatter([b_minx, b_maxx], [dim_y, dim_y], color='darkred', s=10, marker='_', zorder=6)
+        # ax.text(centroid.x, dim_y, f"{b_width:.1f}m", ha='center', va='center', fontsize=5, color='darkred', bbox=dict(facecolor='white', edgecolor='none', pad=0.5, alpha=0.7), zorder=7)
 
 
         # ax.text(centroid.x, centroid.y - 1.5, f"投影 {build_poly.area:.1f} ㎡", ha='center', va='center', fontsize=5, fontweight='bold', color='blue', zorder=5)
     else:
         ax.fill(x, y, alpha=0.3, color='lightgray', edgecolor='black', zorder=2)
         ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", 
-                ha='center', va='center', fontsize=5, color='darkred', zorder=5)
+        # ha='center', va='center', fontsize=5, color='darkred', zorder=5)
 
 # 3. 畫道路
 for r in roads:
