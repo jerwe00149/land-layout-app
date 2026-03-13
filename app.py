@@ -524,7 +524,14 @@ for lot_tuple in lots:
         ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
 
         # 標註該地號的最長邊尺寸
-        lot_coords = list(lot.exterior.coords)
+        # 處理 MultiPolygon 情況
+        if lot.geom_type == 'MultiPolygon':
+            # 取最大的 Polygon
+            lot_for_dim = max(lot.geoms, key=lambda p: p.area)
+        else:
+            lot_for_dim = lot
+        
+        lot_coords = list(lot_for_dim.exterior.coords)
         max_edge_len = 0
         max_edge_p1 = None
         max_edge_p2 = None
