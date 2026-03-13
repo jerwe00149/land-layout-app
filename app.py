@@ -567,7 +567,10 @@ for lot_tuple in lots:
         # ax.text(centroid.x, centroid.y + 1.5, f"編號: {valid_count}", ha='center', va='center', fontsize=5, fontweight='bold', zorder=5)
         build_ping = build_poly.area * 0.3025
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
-        ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", ha='center', va='center', fontsize=5, fontweight='bold', rotation=text_rot, zorder=5)
+        # 加上背景框確保文字可見
+        bbox_props = dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='blue', linewidth=0.5, alpha=0.9)
+        ax.text(centroid.x, centroid.y, f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p", \
+                ha='center', va='center', fontsize=6, fontweight='bold', rotation=text_rot, zorder=10, bbox=bbox_props)
 
         # 標註長寬尺寸（紅色，帶尺寸線）
         b_minx, b_miny, b_maxx, b_maxy = lot.bounds
