@@ -372,14 +372,14 @@ with st.sidebar:
         st.markdown("**直向道路設定 (垂直於X軸)**")
         for i in range(num_v_roads):
             v_pos = st.slider(f"直道 {i+1} 座標 (X)", 0.0, 150.0, 30.0 + i*40.0, step=1.0, key=f"vpos_{i}")
-            v_w = st.slider(f"直道 {i+1} 寬度", 2.0, 20.0, 6.0, step=0.5, key=f"vw_{i}")
+            v_w = st.slider(f"直道 {i+1} 寬度", 1.5, 20.0, 6.0, step=0.5, key=f"vw_{i}")
             roads_info.append(('V', v_pos, v_w))
             
     if num_h_roads > 0:
         st.markdown("**橫向道路設定 (垂直於Y軸)**")
         for i in range(num_h_roads):
             h_pos = st.slider(f"橫道 {i+1} 座標 (Y)", 0.0, 150.0, 45.0 + i*40.0, step=1.0, key=f"hpos_{i}")
-            h_w = st.slider(f"橫道 {i+1} 寬度", 2.0, 20.0, 8.0, step=0.5, key=f"hw_{i}")
+            h_w = st.slider(f"橫道 {i+1} 寬度", 1.5, 20.0, 8.0, step=0.5, key=f"hw_{i}")
             roads_info.append(('H', h_pos, h_w))
 
     st.markdown("### 上傳基地")
