@@ -892,8 +892,8 @@ if uploaded_project is not None:
                 
                 # 讀取基地邊界（BASE 圖層）
                 base_points = []
-                for entity in msp.query('LWPOLYLINE[layer=="BASE"]'):
-                    base_points = [(p[0], p[1]) for p in entity.get_points()]
+                for entity in msp.query('LWPOLYLINE[layer=="SITE_BOUNDARY"]'):
+                    base_points = [(p[0]/100, p[1]/100) for p in entity.get_points()]
                     break
                 
                 if base_points:
@@ -901,8 +901,8 @@ if uploaded_project is not None:
                 
                 # 讀取地塊（LOT 圖層）
                 lots_from_dxf = []
-                for entity in msp.query('LWPOLYLINE[layer=="LOT"]'):
-                    lot_points = [(p[0], p[1]) for p in entity.get_points()]
+                for entity in msp.query('LWPOLYLINE[layer=="LOTS"]'):
+                    lot_points = [(p[0]/100, p[1]/100) for p in entity.get_points()]
                     if len(lot_points) >= 3:
                         lots_from_dxf.append(Polygon(lot_points))
                 
@@ -912,7 +912,7 @@ if uploaded_project is not None:
                 # 讀取道路（ROAD 圖層）
                 roads_from_dxf = []
                 for entity in msp.query('LWPOLYLINE[layer=="ROAD"]'):
-                    road_points = [(p[0], p[1]) for p in entity.get_points()]
+                    road_points = [(p[0]/100, p[1]/100) for p in entity.get_points()]
                     if len(road_points) >= 3:
                         roads_from_dxf.append(Polygon(road_points))
                 
