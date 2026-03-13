@@ -848,36 +848,42 @@ st.sidebar.markdown("### 📂 載入專案")
 uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.json)", type=['json'], key="project_upload")
 
 if uploaded_project is not None:
-    try:
-        import json
-        project_data = json.load(uploaded_project)
-        
-        # 恢復基地座標
-        if '基地座標' in project_data:
-            st.session_state['base_coords'] = [tuple(coord) for coord in project_data['基地座標']]
-        
-        if '建築參數' in project_data:
-            params = project_data['建築參數']
-            st.session_state['width_req'] = params.get('基準面寬', 5.0)
-            st.session_state['depth_req'] = params.get('基準深度', 20.0)
-            st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
-            st.session_state['min_ping'] = params.get('最小坪數', 20.0)
-            st.session_state['auto_orient'] = params.get('自動方向', True)
-            st.session_state['auto_merge'] = params.get('自動合併', False)
-        
-        if '道路設定' in project_data:
-            st.session_state['roads_info'] = project_data['道路設定']
-        
-        if '街廓參數' in project_data and project_data['街廓參數']:
-            st.session_state['block_params'] = project_data['街廓參數']
-        
-        # 標記為已載入專案，自動生成
-        st.session_state['project_loaded'] = True
-        
-        st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
-        st.sidebar.info("🔄 參數已恢復，佈局已自動生成")
-        st.rerun()
-    except Exception as e:
-        st.sidebar.error(f"❌ 載入失敗：{e}")
+    # 檢查是否已經載入過這個檔案
+    file_id = f"{uploaded_project.name}_{uploaded_project.size}"
+    
+    if st.session_state.get('last_loaded_file') != file_id:
+        try:
+            import json
+            project_data = json.load(uploaded_project)
+            
+            # 恢復基地座標
+            if '基地座標' in project_data:
+                st.session_state['base_coords'] = [tuple(coord) for coord in project_data['基地座標']]
+            
+            if '建築參數' in project_data:
+                params = project_data['建築參數']
+                st.session_state['width_req'] = params.get('基準面寬', 5.0)
+                st.session_state['depth_req'] = params.get('基準深度', 20.0)
+                st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
+                st.session_state['min_ping'] = params.get('最小坪數', 20.0)
+                st.session_state['auto_orient'] = params.get('自動方向', True)
+                st.session_state['auto_merge'] = params.get('自動合併', False)
+            
+            if '道路設定' in project_data:
+                st.session_state['roads_info'] = project_data['道路設定']
+            
+            if '街廓參數' in project_data and project_data['街廓參數']:
+                st.session_state['block_params'] = project_data['街廓參數']
+            
+            # 記錄已載入的檔案
+            st.session_state['last_loaded_file'] = file_id
+            st.session_state['project_loaded'] = True
+            
+            st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"❌ 載入失敗：{e}")
+    else:
+        st.sidebar.info(f"📂 專案已載入：{uploaded_project.name}")
 
 st.sidebar.caption("💡 上傳之前匯出的 project_params.json")
