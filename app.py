@@ -562,10 +562,14 @@ for lot_tuple in lots:
             # 文字標註（稍微偏移避免重疊）
             offset_x = -dy / max_edge_len * 0.5
             offset_y = dx / max_edge_len * 0.5
+            # 計算旋轉角度（與邊平行）
+            text_angle = angle if abs(angle) < 90 else angle - 180
+            
             ax.text(mid_x + offset_x, mid_y + offset_y, 
                    f"{max_edge_len:.1f}m", 
                    ha='center', va='center', 
                    fontsize=6, color='green', fontweight='bold',
+                   rotation=90,
                    bbox=dict(facecolor='white', edgecolor='green', pad=0.4, alpha=0.9),
                    zorder=6)
         
@@ -802,3 +806,35 @@ if st.sidebar.button("🎁 打包下載", type="primary", use_container_width=Tr
             key="download_zip_btn"
         )
 st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
+
+# 專案載入功能
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📂 載入專案")
+uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.json)", type=['json'], key="project_upload")
+
+if uploaded_project is not None:
+    try:
+        import json
+        project_data = json.load(uploaded_project)
+        
+        if '建築參數' in project_data:
+            params = project_data['建築參數']
+            st.session_state['width_req'] = params.get('基準面寬', 5.0)
+            st.session_state['depth_req'] = params.get('基準深度', 20.0)
+            st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
+            st.session_state['min_ping'] = params.get('最小坪數', 20.0)
+            st.session_state['auto_orient'] = params.get('自動方向', True)
+            st.session_state['auto_merge'] = params.get('自動合併', False)
+        
+        if '道路設定' in project_data:
+            st.session_state['roads_info'] = project_data['道路設定']
+        
+        if '街廓參數' in project_data and project_data['街廓參數']:
+            st.session_state['block_params'] = project_data['街廓參數']
+        
+        st.sidebar.success(f"✅ 已載入專案：{uploaded_project.name}")
+        st.sidebar.info("💡 參數已恢復，請點擊「生成佈局」")
+    except Exception as e:
+        st.sidebar.error(f"❌ 載入失敗：{e}")
+
+st.sidebar.caption("💡 上傳之前匯出的 project_params.json")
