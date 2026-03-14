@@ -780,45 +780,37 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（右圖道路寬度直接對應左側設定值）
-if roads:
-    # 取左側設定路寬
-    cfg_widths = []
+# 3.0 路寬標示（嚴格使用左側設定：V=直向寬度、H=橫向寬度）
+if roads and roads_info:
+    # 收集左側設定（同方向可能多條，取該方向第一條作為本次標示值）
+    v_width = None
+    h_width = None
     for info in roads_info:
-        if len(info) >= 3:
-            try:
-                cfg_widths.append(float(info[2]))
-            except Exception:
-                pass
+        if len(info) < 3:
+            continue
+        t = str(info[0]).upper()
+        try:
+            w = float(info[2])
+        except Exception:
+            continue
+        if t.startswith('V') and v_width is None:
+            v_width = w
+        if t.startswith('H') and h_width is None:
+            h_width = w
 
-    # 現有道路量測寬度（僅用於排序配對，不直接當最終值）
-    road_items = []
     for r in roads:
-        mw = road_width_from_polygon(r)
-        road_items.append({'poly': r, 'mw': mw})
+        rminx, rminy, rmaxx, rmaxy = r.bounds
+        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
 
-    # 配對策略：
-    # - 當道路數 == 設定數：兩邊都由小到大一一配對（最穩定，1.5/6 不會對調）
-    # - 否則：取最近設定值
-    assigned = []
-    if cfg_widths and len(cfg_widths) == len(road_items):
-        roads_sorted = sorted(road_items, key=lambda x: x['mw'])
-        cfg_sorted = sorted(cfg_widths)
-        for ritem, w in zip(roads_sorted, cfg_sorted):
-            assigned.append((ritem['poly'], w))
-    elif cfg_widths:
-        for ritem in road_items:
-            w = min(cfg_widths, key=lambda cw: abs(cw - ritem['mw']))
-            assigned.append((ritem['poly'], w))
-    else:
-        for ritem in road_items:
-            assigned.append((ritem['poly'], round(ritem['mw'], 1)))
+        if is_vertical:
+            road_w = v_width if v_width is not None else road_width_from_polygon(r)
+        else:
+            road_w = h_width if h_width is not None else road_width_from_polygon(r)
 
-    for r, w in assigned:
-        label_pt = r.representative_point()
+        label_pt = r.representative_point()  # 放在該灰色道路中心
         ax.text(
             label_pt.x, label_pt.y,
-            f"路寬 {float(w):.1f}m",
+            f"路寬 {float(road_w):.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
