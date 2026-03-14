@@ -737,9 +737,10 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-    # 道路寬度標示（取道路包絡框短邊）
-    r_minx, r_miny, r_maxx, r_maxy = r.bounds
-    road_w = min(r_maxx - r_minx, r_maxy - r_miny)
+    # 道路寬度標示（旋轉矩形短邊，避免斜向道路誤判成 47.7m）
+    road_w = road_width_from_polygon(r)
+    # 常見路寬四捨五入到 0.1m
+    road_w = round(road_w, 1)
     rc = r.centroid
     ax.text(
         rc.x, rc.y,
