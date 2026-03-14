@@ -787,9 +787,10 @@ for i, r in enumerate(roads):
     else:
         road_w = round(road_width_from_polygon(r), 1)
 
-    rc = r.centroid
+    # 路寬標示放在道路中心線附近（道路幾何中心）
+    label_pt = r.representative_point()
     ax.text(
-        rc.x, rc.y,
+        label_pt.x, label_pt.y,
         f"路寬 {road_w:.1f}m",
         ha='center', va='center',
         fontsize=8, fontweight='bold', color='red',
