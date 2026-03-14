@@ -739,6 +739,19 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
+    # 道路寬度標示（取道路包絡框短邊）
+    r_minx, r_miny, r_maxx, r_maxy = r.bounds
+    road_w = min(r_maxx - r_minx, r_maxy - r_miny)
+    rc = r.centroid
+    ax.text(
+        rc.x, rc.y,
+        f"路寬 {road_w:.1f}m",
+        ha='center', va='center',
+        fontsize=8, fontweight='bold', color='red',
+        bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
+        zorder=20
+    )
+
 # 3.1 標註街廓區域（改為依 lot 的 block_id 聚合，避免 D 區遺失）
 from collections import defaultdict
 block_polys = defaultdict(list)
