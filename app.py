@@ -497,9 +497,9 @@ with st.sidebar:
         # 從 roads_info 推斷現有道路數量
         existing_v = sum(1 for r in roads_info if r[0] == "V") if roads_info else 0
         existing_h = sum(1 for r in roads_info if r[0] == "H") if roads_info else 0
-        num_v_roads = st.number_input("直向道路數量", min_value=0, max_value=5, value=max(1, existing_v), step=1)
+        num_v_roads = st.number_input("直向道路數量", min_value=0, max_value=5, value=min(5, max(1, existing_v)), step=1)
     with col_h:
-        num_h_roads = st.number_input("橫向道路數量", min_value=0, max_value=5, value=max(1, existing_h), step=1)
+        num_h_roads = st.number_input("橫向道路數量", min_value=0, max_value=5, value=min(5, max(1, existing_h)), step=1)
         
     # 重新建立 roads_info
     new_roads_info = []
@@ -1263,17 +1263,20 @@ if uploaded_project is not None:
                                     pos = (t_val + b_val) / 2
                                     inferred_roads_info.append(('H', round(pos, 1), round(gap, 1)))
                         
-                        # 去重（相近的道路合併）
+                        # 去重（相近的道路合併，閾值加大避免過多道路）
                         deduped = []
                         for ri in inferred_roads_info:
                             is_dup = False
                             for dr in deduped:
-                                if ri[0] == dr[0] and abs(ri[1] - dr[1]) < 3.0:
+                                if ri[0] == dr[0] and abs(ri[1] - dr[1]) < 8.0:
                                     is_dup = True
                                     break
                             if not is_dup:
                                 deduped.append(ri)
-                        inferred_roads_info = deduped
+                        # 每個方向最多保留 3 條
+                        v_roads = [r for r in deduped if r[0] == 'V'][:3]
+                        h_roads = [r for r in deduped if r[0] == 'H'][:3]
+                        inferred_roads_info = v_roads + h_roads
                     
                     # 如果沒推出來，用預設值
                     if not inferred_roads_info:
