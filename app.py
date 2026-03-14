@@ -858,6 +858,35 @@ if roads and roads_info:
             zorder=20
         )
 
+# 4. 街廓區域大標示（A/B/C/D）
+from shapely.ops import unary_union
+block_lot_polys = {}
+for lot_tuple in lots:
+    if len(lot_tuple) == 4:
+        lot, _, _, block_id = lot_tuple
+    else:
+        lot, _, _ = lot_tuple
+        block_id = 1
+    if lot.area * 0.3025 >= min_ping:
+        if block_id not in block_lot_polys:
+            block_lot_polys[block_id] = []
+        block_lot_polys[block_id].append(lot)
+
+for bid, polys in block_lot_polys.items():
+    if not polys:
+        continue
+    merged = unary_union(polys)
+    c = merged.centroid
+    letter = block_id_to_letter(bid)
+    # 大字體區域標示
+    ax.text(
+        c.x, c.y, f"{letter}區",
+        ha='center', va='center',
+        fontsize=18, fontweight='bold', color='navy',
+        alpha=0.4, zorder=15
+    )
+
+
 
 ax.set_aspect('equal')
 ax.axis('off')
