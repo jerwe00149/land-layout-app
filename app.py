@@ -504,14 +504,23 @@ if st.session_state.get('_dxf_clear_widget_keys', False):
             if idx >= len(h_roads):
                 del st.session_state[k]
     
+    # 同步建築參數 widget keys
+    if 'width_req' in st.session_state and isinstance(st.session_state.get('width_req'), (int, float)):
+        pass  # key="width_req" 會直接用 session_state 值
+    if 'depth_req' in st.session_state and isinstance(st.session_state.get('depth_req'), (int, float)):
+        pass
+    if 'min_ping' in st.session_state and isinstance(st.session_state.get('min_ping'), (int, float)):
+        pass
+    
     st.session_state['_dxf_clear_widget_keys'] = False
 
 with st.sidebar:
     st.markdown("### 1. 建築參數")
-    width_req = st.number_input("基準面寬 (公尺)", min_value=3.0, max_value=20.0, value=st.session_state.get("width_req", 5.0), step=0.1)
-    depth_req = st.number_input("基準深度 (公尺)", min_value=5.0, max_value=50.0, value=st.session_state.get("depth_req", 20.0), step=0.1)
-    coverage_ratio = st.slider("建蔽率 (%)", min_value=0.0, max_value=100.0, value=float(st.session_state.get("coverage_ratio", 0.6) * 100), step=1.0) / 100
-    min_ping = st.number_input("最小可建地坪", min_value=5.0, max_value=50.0, value=st.session_state.get("min_ping", 20.0), step=1.0)
+    width_req = st.number_input("基準面寬 (公尺)", min_value=3.0, max_value=20.0, value=st.session_state.get("width_req", 5.0), step=0.1, key="width_req")
+    depth_req = st.number_input("基準深度 (公尺)", min_value=5.0, max_value=50.0, value=st.session_state.get("depth_req", 20.0), step=0.1, key="depth_req")
+    coverage_pct = st.slider("建蔽率 (%)", min_value=0.0, max_value=100.0, value=float(st.session_state.get("coverage_ratio", 0.6) * 100), step=1.0)
+    coverage_ratio = coverage_pct / 100
+    min_ping = st.number_input("最小可建地坪", min_value=5.0, max_value=50.0, value=st.session_state.get("min_ping", 20.0), step=1.0, key="min_ping")
     
     st.markdown("### 2. 土地檢討")
     auto_orient = st.checkbox("依街廓形狀自動轉向", value=st.session_state.get("auto_orient", True))
@@ -859,46 +868,36 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=4)
 
-# 3.0 路寬標示（用位置配對，不用幾何方向判斷）
-if roads:
-    # 收集所有設定的道路（含方向、位置、寬度）
-    active_roads_info = roads_info if roads_info else []
-    if not active_roads_info:
-        active_roads_info = st.session_state.get('roads_info', [])
+# 3.0 路寬標示（直接從 roads_info 標註，每條道路各一個標籤）
+active_roads_info = roads_info if roads_info else st.session_state.get('roads_info', [])
+
+# 取得基地邊界用來定位標籤
+site_bounds = base_polygon.bounds  # (minx, miny, maxx, maxy)
+site_cx = (site_bounds[0] + site_bounds[2]) / 2
+site_cy = (site_bounds[1] + site_bounds[3]) / 2
+
+for ri in active_roads_info:
+    if len(ri) < 3:
+        continue
+    direction = str(ri[0]).upper()
+    pos = float(ri[1])
+    width = float(ri[2])
     
-    v_roads_cfg = [(float(r[1]), float(r[2])) for r in active_roads_info if len(r)>=3 and str(r[0]).upper().startswith('V')]
-    h_roads_cfg = [(float(r[1]), float(r[2])) for r in active_roads_info if len(r)>=3 and str(r[0]).upper().startswith('H')]
+    if direction.startswith('V'):
+        # 直向道路：標在 (pos, 基地Y中心)
+        lx, ly = pos, site_cy
+    else:
+        # 橫向道路：標在 (基地X中心, pos)
+        lx, ly = site_cx, pos
     
-    for r in roads:
-        rc = r.centroid
-        
-        # 嘗試配對到最近的設定道路（用中心座標判斷）
-        best_w = 6.0
-        best_dist = float('inf')
-        
-        # 與 V 道路配對（比較 X 座標）
-        for pos, w in v_roads_cfg:
-            dist = abs(rc.x - pos)
-            if dist < best_dist:
-                best_dist = dist
-                best_w = w
-        
-        # 與 H 道路配對（比較 Y 座標）
-        for pos, w in h_roads_cfg:
-            dist = abs(rc.y - pos)
-            if dist < best_dist:
-                best_dist = dist
-                best_w = w
-        
-        label_pt = r.representative_point()
-        ax.text(
-            label_pt.x, label_pt.y,
-            f"路寬 {float(best_w):.1f}m",
-            ha='center', va='center',
-            fontsize=8, fontweight='bold', color='red',
-            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
-            zorder=20
-        )
+    ax.text(
+        lx, ly,
+        f"路寬 {width:.1f}m",
+        ha='center', va='center',
+        fontsize=8, fontweight='bold', color='red',
+        bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
+        zorder=20
+    )
 
 # 4. 街廓區域大標示（A/B/C/D）- 確保標示在地塊區域內，不跑到道路上
 from shapely.ops import unary_union
