@@ -751,14 +751,16 @@ for lot_tuple in lots:
         ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", ha='center', va='center', fontsize=5, color='gray', zorder=5)
 
 # 3. 畫道路
-for r in roads:
+for i, r in enumerate(roads):
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-    # 道路寬度標示（旋轉矩形短邊，避免斜向道路誤判成 47.7m）
-    road_w = road_width_from_polygon(r)
-    # 常見路寬四捨五入到 0.1m
-    road_w = round(road_w, 1)
+    # 道路寬度標示：優先使用左側設定值（roads_info），避免幾何量測誤差
+    if i < len(roads_info):
+        road_w = float(roads_info[i][2])
+    else:
+        road_w = round(road_width_from_polygon(r), 1)
+
     rc = r.centroid
     ax.text(
         rc.x, rc.y,
