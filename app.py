@@ -37,7 +37,7 @@ def block_id_to_letter(block_id):
 
 
 def merge_small_lots_into_neighbors(lots, min_ping):
-    """把小於最小坪數的灰色畸零地，併入同街廓最近/相鄰的有效地塊。"""
+    """把小於最小坪數的灰色畸零地，僅在「相鄰接觸」時併入同街廓地塊。"""
     if not lots:
         return lots
 
@@ -60,13 +60,14 @@ def merge_small_lots_into_neighbors(lots, min_ping):
         return lots
 
     removed = set()
+    eps = 1e-6
 
     for si in small_idx:
         if si in removed:
             continue
         spoly, sdx, sdy, sbid = parsed[si]
 
-        # 優先找同街廓可相鄰併入者
+        # 只找同街廓且「接觸」的候選，避免跨塊吃到上方地塊
         candidates = []
         for vi in valid_idx:
             if vi in removed:
@@ -74,28 +75,25 @@ def merge_small_lots_into_neighbors(lots, min_ping):
             vpoly, vdx, vdy, vbid = parsed[vi]
             if vbid != sbid:
                 continue
-            dist = spoly.distance(vpoly)
-            candidates.append((dist, vi))
+            if spoly.distance(vpoly) > eps:
+                continue
+
+            inter = spoly.boundary.intersection(vpoly.boundary)
+            shared_len = inter.length if not inter.is_empty else 0.0
+            candidates.append((shared_len, vi))
 
         if not candidates:
-            # 同街廓找不到就找最近有效地（避免孤立灰地）
-            for vi in valid_idx:
-                if vi in removed:
-                    continue
-                vpoly, vdx, vdy, vbid = parsed[vi]
-                dist = spoly.distance(vpoly)
-                candidates.append((dist, vi))
-
-        if not candidates:
+            # 沒有可安全合併的相鄰地塊，就保留灰地，不強行併
             continue
 
-        candidates.sort(key=lambda x: x[0])
+        # 優先併入共邊最長的地塊（通常就是正確鄰地，例如 D-6）
+        candidates.sort(key=lambda x: x[0], reverse=True)
         target_i = candidates[0][1]
         tpoly, tdx, tdy, tbid = parsed[target_i]
 
         merged = tpoly.union(spoly)
         if merged.geom_type == 'MultiPolygon':
-            # 優先取最大塊，避免不連通碎片造成異常
+            # 只在連通時才應發生；保守取最大塊避免異常
             merged = max(list(merged.geoms), key=lambda g: g.area)
 
         parsed[target_i][0] = merged
