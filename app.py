@@ -886,11 +886,16 @@ for bid, polys in block_lot_polys.items():
         label_pt = biggest.representative_point()
     
     letter = block_id_to_letter(bid)
+    # 放在區域邊緣（左上角偏移），避免被地塊文字蓋住
+    bminx, bminy, bmaxx, bmaxy = merged.bounds
+    lx = bminx + (bmaxx - bminx) * 0.15
+    ly = bmaxy - (bmaxy - bminy) * 0.12
     ax.text(
-        label_pt.x, label_pt.y, f"{letter}區",
+        lx, ly, f"{letter}區",
         ha='center', va='center',
-        fontsize=18, fontweight='bold', color='navy',
-        alpha=0.4, zorder=15
+        fontsize=22, fontweight='bold', color='navy',
+        alpha=0.6, zorder=30,
+        bbox=dict(facecolor='white', edgecolor='none', alpha=0.5, pad=1.0)
     )
 
 
