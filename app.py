@@ -789,6 +789,18 @@ if st.session_state.get('loaded_from_dxf', False):
                 params_changed = True
                 break
     
+    # DEBUG: 顯示變更偵測結果
+    _snap_bp = st.session_state.get('_dxf_block_params_snapshot', {})
+    _bp_status = []
+    if block_params:
+        for _bid in sorted(block_params.keys()):
+            _curr = block_params[_bid]
+            _snap = _snap_bp.get(_bid, _snap_bp.get(str(_bid), ('N/A', 'N/A')))
+            _diff = abs(round(float(_curr[0]),1) - round(float(_snap[0]),1)) if _snap[0] != 'N/A' else 0
+            _mark = '✏️' if _diff > 0.01 else '='
+            _bp_status.append(f"{_mark}{block_id_to_letter(_bid)}:w{_curr[0]}vs{_snap[0]}")
+    st.sidebar.caption(f"🔍 changed={params_changed} | bp={block_params is not None} | {' '.join(_bp_status)}")
+    
     if not params_changed:
         # 沒改 → DXF 原始幾何
         lots = st.session_state.get('imported_lots', [])
