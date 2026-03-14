@@ -1232,70 +1232,81 @@ if uploaded_project is not None:
                     roads = st.session_state['imported_roads']
                     base_polygon = Polygon(st.session_state['base_coords'])
                     
-                    # 反推道路參數（從地塊間隙分析，而非道路多邊形）
+                    # 反推道路參數（按街廓分組，找街廓之間的間隙）
                     inferred_roads_info = []
                     
                     if 'imported_lots' in st.session_state:
                         imp_lots = st.session_state['imported_lots']
-                        lot_polys = [lt[0] for lt in imp_lots]
                         
-                        # 收集所有地塊邊界
-                        all_bounds = [lp.bounds for lp in lot_polys]
+                        # 按 block_id 分組，計算每組的整體邊界
+                        block_bounds = {}
+                        for lt in imp_lots:
+                            bid = lt[3] if len(lt) == 4 else 1
+                            b = lt[0].bounds
+                            if bid not in block_bounds:
+                                block_bounds[bid] = [b[0], b[1], b[2], b[3]]
+                            else:
+                                bb = block_bounds[bid]
+                                bb[0] = min(bb[0], b[0])
+                                bb[1] = min(bb[1], b[1])
+                                bb[2] = max(bb[2], b[2])
+                                bb[3] = max(bb[3], b[3])
                         
-                        # 分析垂直間隙（X 方向）→ 找直向道路
-                        x_edges = []
-                        for b in all_bounds:
-                            x_edges.append(('L', b[0]))  # left
-                            x_edges.append(('R', b[2]))  # right
-                        x_edges.sort(key=lambda e: e[1])
+                        bids = sorted(block_bounds.keys())
                         
-                        # 找明顯的 X 間隙（右邊界 → 左邊界之間 > 1m）
-                        rights = sorted(set(round(e[1], 1) for e in x_edges if e[0] == 'R'))
-                        lefts = sorted(set(round(e[1], 1) for e in x_edges if e[0] == 'L'))
+                        # 找 X 方向間隙（直向道路）
+                        v_gaps = []
+                        for i in range(len(bids)):
+                            for j in range(i+1, len(bids)):
+                                bb1 = block_bounds[bids[i]]
+                                bb2 = block_bounds[bids[j]]
+                                # 兩塊在 Y 方向有重疊，X 方向有間隙
+                                y_overlap = min(bb1[3], bb2[3]) - max(bb1[1], bb2[1])
+                                if y_overlap > 1.0:
+                                    x_gap = max(bb2[0] - bb1[2], bb1[0] - bb2[2])
+                                    if 0.5 < x_gap < 20.0:
+                                        pos = (min(bb1[2], bb2[2]) + max(bb1[0], bb2[0])) / 2
+                                        if bb1[2] < bb2[0]:
+                                            pos = (bb1[2] + bb2[0]) / 2
+                                        elif bb2[2] < bb1[0]:
+                                            pos = (bb2[2] + bb1[0]) / 2
+                                        v_gaps.append(('V', round(pos, 1), round(x_gap, 1)))
                         
-                        for r_val in rights:
-                            for l_val in lefts:
-                                gap = l_val - r_val
-                                if 1.0 < gap < 20.0:
-                                    pos = (r_val + l_val) / 2
-                                    inferred_roads_info.append(('V', round(pos, 1), round(gap, 1)))
+                        # 找 Y 方向間隙（橫向道路）
+                        h_gaps = []
+                        for i in range(len(bids)):
+                            for j in range(i+1, len(bids)):
+                                bb1 = block_bounds[bids[i]]
+                                bb2 = block_bounds[bids[j]]
+                                # 兩塊在 X 方向有重疊，Y 方向有間隙
+                                x_overlap = min(bb1[2], bb2[2]) - max(bb1[0], bb2[0])
+                                if x_overlap > 1.0:
+                                    y_gap = max(bb2[1] - bb1[3], bb1[1] - bb2[3])
+                                    if 0.5 < y_gap < 20.0:
+                                        if bb1[3] < bb2[1]:
+                                            pos = (bb1[3] + bb2[1]) / 2
+                                        elif bb2[3] < bb1[1]:
+                                            pos = (bb2[3] + bb1[1]) / 2
+                                        else:
+                                            continue
+                                        h_gaps.append(('H', round(pos, 1), round(y_gap, 1)))
                         
-                        # 分析水平間隙（Y 方向）→ 找橫向道路
-                        y_tops = sorted(set(round(b[3], 1) for b in all_bounds))
-                        y_bots = sorted(set(round(b[1], 1) for b in all_bounds))
-                        
-                        for t_val in y_tops:
-                            for b_val in y_bots:
-                                gap = b_val - t_val
-                                if 1.0 < gap < 20.0:
-                                    pos = (t_val + b_val) / 2
-                                    inferred_roads_info.append(('H', round(pos, 1), round(gap, 1)))
-                        
-                        # 去重（相近的道路合併，閾值加大避免過多道路）
-                        deduped = []
-                        for ri in inferred_roads_info:
-                            is_dup = False
-                            for dr in deduped:
-                                if ri[0] == dr[0] and abs(ri[1] - dr[1]) < 8.0:
-                                    is_dup = True
-                                    break
-                            if not is_dup:
-                                deduped.append(ri)
-                        # 每個方向最多保留 3 條
-                        v_roads = [r for r in deduped if r[0] == 'V'][:3]
-                        h_roads = [r for r in deduped if r[0] == 'H'][:3]
-                        inferred_roads_info = v_roads + h_roads
+                        # 去重
+                        for gaps in [v_gaps, h_gaps]:
+                            deduped = []
+                            for g in gaps:
+                                is_dup = False
+                                for d in deduped:
+                                    if abs(g[1] - d[1]) < 5.0:
+                                        is_dup = True
+                                        break
+                                if not is_dup:
+                                    deduped.append(g)
+                            inferred_roads_info.extend(deduped)
                     
                     # 如果沒推出來，用預設值
                     if not inferred_roads_info:
-                        for r in roads:
-                            rminx, rminy, rmaxx, rmaxy = r.bounds
-                            rc = r.centroid
-                            is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
-                            if is_vertical:
-                                inferred_roads_info.append(('V', round(rc.x, 1), 6.0))
-                            else:
-                                inferred_roads_info.append(('H', round(rc.y, 1), 6.0))
+                        inferred_roads_info = [('V', 50.0, 6.0), ('H', 50.0, 6.0)]
                     
                     # 回填 roads_info（供路寬標註使用）
                     if inferred_roads_info:
