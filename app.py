@@ -353,10 +353,9 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping, roa
         return tmp.name
 
 def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=True):
-    """Re-subdivide a single block polygon into lots with given width/depth."""
-    from shapely.geometry import box as sbox, Polygon as ShapelyPolygon
+    """Re-subdivide a single block polygon into lots with given width/depth (2D grid)."""
+    from shapely.geometry import box as sbox
     
-    # 確保 block_poly 有效
     if block_poly.is_empty or not block_poly.is_valid:
         block_poly = block_poly.buffer(0)
     
@@ -368,17 +367,30 @@ def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=
     bh = maxy - miny
     if bw < 0.1 or bh < 0.1: return []
     
-    lots = []
-    
-    # 決定切割方向（面寬方向切）
-    if bw >= bh:
-        # 橫向排列（沿 X 切，每塊寬=width）
+    # 2D 網格切割：面寬控制短邊，深度控制長邊
+    # 判斷哪個方向是面寬方向（短邊）
+    if bw <= bh:
+        # 街廓比較窄高 → X 方向是面寬，Y 方向是深度
         n_cols = max(1, int(round(bw / width)))
-        actual_w = bw / n_cols
+        n_rows = max(1, int(round(bh / depth)))
+        arrow = (1, 0)  # 面寬朝 X
+    else:
+        # 街廓比較寬矮 → Y 方向是面寬，X 方向是深度
+        n_cols = max(1, int(round(bw / depth)))
+        n_rows = max(1, int(round(bh / width)))
+        arrow = (0, 1)  # 面寬朝 Y
+    
+    actual_w = bw / n_cols
+    actual_h = bh / n_rows
+    
+    lots = []
+    for r in range(n_rows):
         for c in range(n_cols):
             x0 = minx + c * actual_w
             x1 = x0 + actual_w
-            lot_box = sbox(x0, miny, x1, maxy)
+            y0 = miny + r * actual_h
+            y1 = y0 + actual_h
+            lot_box = sbox(x0, y0, x1, y1)
             lot = block_poly.intersection(lot_box)
             if lot.is_empty: continue
             # 只保留 Polygon
@@ -390,26 +402,7 @@ def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=
                 else: continue
             if lot.geom_type != 'Polygon': continue
             if lot.area * 0.3025 >= min_area:
-                lots.append((lot, 0, 1, block_id))
-    else:
-        # 縱向排列（沿 Y 切，每塊深=depth）
-        n_rows = max(1, int(round(bh / depth)))
-        actual_h = bh / n_rows
-        for r in range(n_rows):
-            y0 = miny + r * actual_h
-            y1 = y0 + actual_h
-            lot_box = sbox(minx, y0, maxx, y1)
-            lot = block_poly.intersection(lot_box)
-            if lot.is_empty: continue
-            if lot.geom_type == 'MultiPolygon':
-                lot = max(lot.geoms, key=lambda g: g.area)
-            elif lot.geom_type == 'GeometryCollection':
-                polys = [g for g in lot.geoms if g.geom_type == 'Polygon']
-                if polys: lot = max(polys, key=lambda g: g.area)
-                else: continue
-            if lot.geom_type != 'Polygon': continue
-            if lot.area * 0.3025 >= min_area:
-                lots.append((lot, 1, 0, block_id))
+                lots.append((lot, arrow[0], arrow[1], block_id))
     
     return lots
 
