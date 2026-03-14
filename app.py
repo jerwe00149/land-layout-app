@@ -692,18 +692,38 @@ else:
 
 # 檢查是否從 DXF 載入
 if st.session_state.get('loaded_from_dxf', False):
-    # 比較目前 slider 值和 DXF 快照
-    dxf_snapshot = st.session_state.get('_dxf_roads_snapshot', [])
+    # 比較目前所有參數和 DXF 快照
+    dxf_snap = st.session_state.get('dxf_snapshot', {})
     params_changed = False
     
-    if dxf_snapshot and roads_info:
-        if len(roads_info) != len(dxf_snapshot):
+    # 檢查道路
+    snap_roads = dxf_snap.get('roads_info', [])
+    if snap_roads and roads_info:
+        if len(roads_info) != len(snap_roads):
             params_changed = True
         else:
-            for curr, snap in zip(roads_info, dxf_snapshot):
+            for curr, snap in zip(roads_info, snap_roads):
                 if curr[0] != snap[0] or abs(float(curr[1]) - float(snap[1])) > 0.5 or abs(float(curr[2]) - float(snap[2])) > 0.1:
                     params_changed = True
                     break
+    
+    # 檢查面寬/深度/坪數
+    if not params_changed:
+        for key in ['width_req', 'depth_req', 'min_ping']:
+            snap_val = dxf_snap.get(key)
+            curr_val = locals().get(key) or st.session_state.get(key)
+            if snap_val is not None and curr_val is not None and abs(float(curr_val) - float(snap_val)) > 0.05:
+                params_changed = True
+                break
+    
+    # 檢查各街廓參數
+    if not params_changed and block_params:
+        snap_bp = dxf_snap.get('block_params', {})
+        for bid, (bw, bd) in block_params.items():
+            snap_bw, snap_bd = snap_bp.get(str(bid), snap_bp.get(bid, (bw, bd)))
+            if abs(float(bw) - float(snap_bw)) > 0.05 or abs(float(bd) - float(snap_bd)) > 0.05:
+                params_changed = True
+                break
     
     if not params_changed:
         # 沒改 → DXF 原始幾何
@@ -1466,9 +1486,10 @@ if uploaded_project is not None:
                 # 保存反推參數快照（用於偵測左側是否有改動）
                 st.session_state['dxf_snapshot'] = {
                     'roads_info': list(st.session_state.get('roads_info', [])),
-                    'width_req': st.session_state.get('width_req'),
-                    'depth_req': st.session_state.get('depth_req'),
-                    'min_ping': st.session_state.get('min_ping'),
+                    'width_req': st.session_state.get('_dxf_width_req'),
+                    'depth_req': st.session_state.get('_dxf_depth_req'),
+                    'min_ping': st.session_state.get('_dxf_min_ping'),
+                    'block_params': {str(k): v for k, v in st.session_state.get('block_params', {}).items()},
                 }
                 
                 st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
