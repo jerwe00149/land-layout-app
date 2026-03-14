@@ -504,13 +504,11 @@ if st.session_state.get('_dxf_clear_widget_keys', False):
             if idx >= len(h_roads):
                 del st.session_state[k]
     
-    # 同步建築參數 widget keys
-    if 'width_req' in st.session_state and isinstance(st.session_state.get('width_req'), (int, float)):
-        pass  # key="width_req" 會直接用 session_state 值
-    if 'depth_req' in st.session_state and isinstance(st.session_state.get('depth_req'), (int, float)):
-        pass
-    if 'min_ping' in st.session_state and isinstance(st.session_state.get('min_ping'), (int, float)):
-        pass
+    # 同步各街廓面寬/深度 widget keys
+    bp = st.session_state.get('block_params', {})
+    for bid, (bw, bd) in bp.items():
+        st.session_state[f'bw_{bid}'] = float(bw)
+        st.session_state[f'bd_{bid}'] = float(bd)
     
     st.session_state['_dxf_clear_widget_keys'] = False
 
@@ -1403,6 +1401,30 @@ if uploaded_project is not None:
                                 st.session_state['depth_req'] = round(sorted(lot_depths)[len(lot_depths)//2], 1)
                         else:
                             st.session_state['min_ping'] = 20
+                    
+                    # 反推各街廓的面寬/深度
+                    if 'imported_lots' in st.session_state:
+                        block_lot_dims = {}  # {bid: {'widths': [], 'depths': []}}
+                        for lt in st.session_state['imported_lots']:
+                            bid = lt[3] if len(lt) == 4 else 1
+                            poly = lt[0]
+                            lminx, lminy, lmaxx, lmaxy = poly.bounds
+                            w = round(lmaxx - lminx, 1)
+                            h = round(lmaxy - lminy, 1)
+                            lot_w = min(w, h)
+                            lot_d = max(w, h)
+                            if bid not in block_lot_dims:
+                                block_lot_dims[bid] = {'widths': [], 'depths': []}
+                            block_lot_dims[bid]['widths'].append(lot_w)
+                            block_lot_dims[bid]['depths'].append(lot_d)
+                        
+                        inferred_block_params = {}
+                        for bid, dims in block_lot_dims.items():
+                            med_w = round(sorted(dims['widths'])[len(dims['widths'])//2], 1)
+                            med_d = round(sorted(dims['depths'])[len(dims['depths'])//2], 1)
+                            inferred_block_params[bid] = (float(med_w), float(med_d))
+                        
+                        st.session_state['block_params'] = inferred_block_params
                 
                 st.session_state['last_loaded_file'] = file_id
                 
