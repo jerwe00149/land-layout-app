@@ -352,6 +352,49 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping, roa
         doc.saveas(tmp.name)
         return tmp.name
 
+def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=True):
+    """Re-subdivide a single block polygon into lots with given width/depth."""
+    from shapely.geometry import box as sbox
+    bounds = block_poly.bounds
+    if not bounds: return []
+    minx, miny, maxx, maxy = bounds
+    
+    bw = maxx - minx
+    bh = maxy - miny
+    
+    # 決定切割方向（沿長邊排列）
+    if bw >= bh:
+        # 橫向排列（沿 X 切）
+        n_cols = max(1, int(round(bw / width)))
+        actual_w = bw / n_cols
+        lots = []
+        for c in range(n_cols):
+            x0 = minx + c * actual_w
+            x1 = x0 + actual_w
+            lot_box = sbox(x0, miny, x1, maxy)
+            lot = block_poly.intersection(lot_box)
+            if not lot.is_empty and lot.area > 0.1:
+                area_ping = lot.area * 0.3025
+                if area_ping >= min_area:
+                    cx = lot.centroid.x
+                    lots.append((lot, 0, 1, block_id))
+        return lots
+    else:
+        # 縱向排列（沿 Y 切）
+        n_rows = max(1, int(round(bh / depth)))
+        actual_h = bh / n_rows
+        lots = []
+        for r in range(n_rows):
+            y0 = miny + r * actual_h
+            y1 = y0 + actual_h
+            lot_box = sbox(minx, y0, maxx, y1)
+            lot = block_poly.intersection(lot_box)
+            if not lot.is_empty and lot.area > 0.1:
+                area_ping = lot.area * 0.3025
+                if area_ping >= min_area:
+                    lots.append((lot, 1, 0, block_id))
+        return lots
+
 def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, block_params=None, custom_widths=None):
     bounds = poly.bounds
     if not bounds: return [], []
@@ -731,12 +774,61 @@ if st.session_state.get('loaded_from_dxf', False):
         roads = st.session_state.get('imported_roads', [])
         st.info("📂 DXF 原始佈局 — 調整左側參數即可重新生成")
     else:
-        # 改了 → 自動重新生成
-        lots, roads = generate_layout(
-            base_polygon, width_req, depth_req, 
-            roads_info, min_ping, auto_orient, auto_merge, block_params
-        , st.session_state.get("custom_lot_widths"))
-        st.info("📐 參數已調整，使用重新生成佈局")
+        # 改了 → 只重新分割被修改的街廓，其他保持 DXF 原樣
+        imported_lots = st.session_state.get('imported_lots', [])
+        roads = st.session_state.get('imported_roads', [])
+        snap_bp = dxf_snap.get('block_params', {})
+        
+        # 找出哪些街廓被修改了
+        changed_blocks = set()
+        if block_params:
+            for bid, (bw, bd) in block_params.items():
+                snap_bw, snap_bd = snap_bp.get(str(bid), snap_bp.get(bid, (bw, bd)))
+                if abs(float(bw) - float(snap_bw)) > 0.05 or abs(float(bd) - float(snap_bd)) > 0.05:
+                    changed_blocks.add(bid)
+        
+        # 檢查全域參數是否改了（面寬/深度/坪數/道路）
+        global_changed = False
+        for key in ['width_req', 'depth_req', 'min_ping']:
+            snap_val = dxf_snap.get(key)
+            curr_val = locals().get(key) or st.session_state.get(key)
+            if snap_val is not None and curr_val is not None and abs(float(curr_val) - float(snap_val)) > 0.05:
+                global_changed = True
+                break
+        snap_roads = dxf_snap.get('roads_info', [])
+        if snap_roads and roads_info and len(roads_info) != len(snap_roads):
+            global_changed = True
+        elif snap_roads and roads_info:
+            for curr, snap in zip(roads_info, snap_roads):
+                if curr[0] != snap[0] or abs(float(curr[1]) - float(snap[1])) > 0.5 or abs(float(curr[2]) - float(snap[2])) > 0.1:
+                    global_changed = True
+                    break
+        
+        if global_changed:
+            # 全域參數改了 → 全部重新生成
+            lots, roads = generate_layout(
+                base_polygon, width_req, depth_req,
+                roads_info, min_ping, auto_orient, auto_merge, block_params,
+                st.session_state.get("custom_lot_widths"))
+        else:
+            # 只有街廓參數改了 → 局部重新分割
+            lots = []
+            for lt in imported_lots:
+                bid = lt[3] if len(lt) == 4 else 1
+                if bid not in changed_blocks:
+                    lots.append(lt)
+            
+            # 重新分割被修改的街廓
+            from shapely.ops import unary_union
+            for bid in changed_blocks:
+                block_lots = [lt[0] for lt in imported_lots if (lt[3] if len(lt)==4 else 1) == bid]
+                if block_lots:
+                    block_poly = unary_union(block_lots)
+                    bw, bd = block_params.get(bid, (width_req, depth_req))
+                    new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
+                    lots.extend(new_lots)
+        
+        st.warning("⚠️ 參數已調整，使用重新產生佈局")
         if st.button("↩️ 恢復 DXF 原始幾何"):
             st.session_state['_dxf_clear_widget_keys'] = True
             st.rerun()
