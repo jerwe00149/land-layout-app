@@ -379,16 +379,22 @@ def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=
         n_rows = max(1, int(round(bh / width)))
         arrow = (1, 0)
     
-    actual_w = bw / n_cols
-    actual_h = bh / n_rows
-    
+    # 用精確面寬/深度，最後一塊吸收剩餘
     lots = []
     for r in range(n_rows):
         for c in range(n_cols):
-            x0 = minx + c * actual_w
-            x1 = x0 + actual_w
-            y0 = miny + r * actual_h
-            y1 = y0 + actual_h
+            if bw >= bh:
+                # X=面寬, Y=深度
+                x0 = minx + c * width
+                x1 = minx + (c + 1) * width if c < n_cols - 1 else maxx
+                y0 = miny + r * depth
+                y1 = miny + (r + 1) * depth if r < n_rows - 1 else maxy
+            else:
+                # X=深度, Y=面寬
+                x0 = minx + c * depth
+                x1 = minx + (c + 1) * depth if c < n_cols - 1 else maxx
+                y0 = miny + r * width
+                y1 = miny + (r + 1) * width if r < n_rows - 1 else maxy
             lot_box = sbox(x0, y0, x1, y1)
             lot = block_poly.intersection(lot_box)
             if lot.is_empty: continue
