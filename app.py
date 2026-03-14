@@ -1137,7 +1137,7 @@ if uploaded_project is not None:
                 os.unlink(temp_dxf.name)
                 
                 # 標記為已載入 DXF
-                st.session_state['loaded_from_dxf'] = True
+                st.session_state['loaded_from_dxf'] = False  # 不鎖定，允許左側調整
 
                 # DXF 匯入後：反推參數並同步回左側欄位
                 if 'imported_roads' in st.session_state and 'base_coords' in st.session_state:
@@ -1182,25 +1182,37 @@ if uploaded_project is not None:
                     st.session_state['base_width'] = round(bmaxx - bminx, 1)
                     st.session_state['base_height'] = round(bmaxy - bminy, 1)
                     
-                    # 反推最小坪數
+                    # 反推最小坪數及面寬/深度
                     if 'imported_lots' in st.session_state:
                         lots = st.session_state['imported_lots']
                         valid_areas = []
+                        lot_widths = []
+                        lot_depths = []
                         for lot_tuple in lots:
                             poly = lot_tuple[0]
                             area_ping = poly.area * 0.3025
                             if area_ping >= 10:
                                 valid_areas.append(area_ping)
+                                lminx, lminy, lmaxx, lmaxy = poly.bounds
+                                w = lmaxx - lminx
+                                h = lmaxy - lminy
+                                lot_widths.append(min(w, h))
+                                lot_depths.append(max(w, h))
                         if valid_areas:
                             median_area = sorted(valid_areas)[len(valid_areas)//2]
                             st.session_state['min_ping'] = max(15, round(median_area * 0.6, 0))
+                            # 反推面寬/深度（取中位數）
+                            if lot_widths:
+                                st.session_state['width_req'] = round(sorted(lot_widths)[len(lot_widths)//2], 1)
+                            if lot_depths:
+                                st.session_state['depth_req'] = round(sorted(lot_depths)[len(lot_depths)//2], 1)
                         else:
                             st.session_state['min_ping'] = 20
                 
                 st.session_state['last_loaded_file'] = file_id
                 
                 st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
-                st.sidebar.info("💡 使用 DXF 原始佈局，不會重新生成")
+                st.sidebar.info("💡 左側參數已同步，可直接調整")
                 st.rerun()
             else:
                 st.sidebar.error('❌ 目前僅支援 DXF 匯入')
