@@ -479,11 +479,11 @@ if st.session_state.get('_dxf_clear_widget_keys', False):
     
     # 覆寫 slider key 為 DXF 反推值（不是刪除，是直接設值）
     for i, r in enumerate(v_roads):
-        st.session_state[f'vpos_{i}'] = round(float(r[1]))  # step=1.0
-        st.session_state[f'vw_{i}'] = round(float(r[2]) * 2) / 2  # step=0.5
+        st.session_state[f'vpos_{i}'] = float(round(float(r[1])))  # step=1.0, must be float
+        st.session_state[f'vw_{i}'] = float(round(float(r[2]) * 2) / 2)  # step=0.5
     for i, r in enumerate(h_roads):
-        st.session_state[f'hpos_{i}'] = round(float(r[1]))  # step=1.0
-        st.session_state[f'hw_{i}'] = round(float(r[2]) * 2) / 2  # step=0.5
+        st.session_state[f'hpos_{i}'] = float(round(float(r[1])))  # step=1.0, must be float
+        st.session_state[f'hw_{i}'] = float(round(float(r[2]) * 2) / 2)  # step=0.5
     
     # 清除多餘的舊 key（如果之前有更多道路）
     for k in list(st.session_state.keys()):
