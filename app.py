@@ -780,24 +780,41 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（每條灰色道路各自顯示）
+# 3.0 路寬標示（與左側 roads_info 一一對應）
 if roads:
-    # 取得可用設定路寬（如 1.5、6.0），用來把量測值對齊到設定值
-    cfg_widths = []
-    for info in roads_info:
-        if len(info) >= 3:
-            try:
-                cfg_widths.append(float(info[2]))
-            except Exception:
-                pass
+    # 道路特徵：方向 + 位置（用來和左側設定逐一配對）
+    road_feats = []
+    for i, r in enumerate(roads):
+        rminx, rminy, rmaxx, rmaxy = r.bounds
+        rc = r.centroid
+        typ = 'V' if (rmaxy - rminy) > (rmaxx - rminx) else 'H'
+        pos = rc.x if typ == 'V' else rc.y
+        road_feats.append({'idx': i, 'poly': r, 'typ': typ, 'pos': pos})
 
-    for r in roads:
-        measured_w = road_width_from_polygon(r)
-        # 有設定值時：把量測寬度對齊到最近設定值，避免誤差
-        if cfg_widths:
-            road_w = min(cfg_widths, key=lambda w: abs(w - measured_w))
-        else:
-            road_w = measured_w
+    setting_feats = []
+    for info in roads_info:
+        if len(info) < 3:
+            continue
+        t = str(info[0]).upper()
+        t = 'V' if t.startswith('V') else ('H' if t.startswith('H') else t)
+        try:
+            setting_feats.append({'typ': t, 'pos': float(info[1]), 'w': float(info[2])})
+        except Exception:
+            continue
+
+    # 依方向分組，按位置排序後一一對齊（最穩定）
+    matched_width = {}
+    for typ in ['V', 'H']:
+        rf = sorted([x for x in road_feats if x['typ'] == typ], key=lambda x: x['pos'])
+        sf = sorted([x for x in setting_feats if x['typ'] == typ], key=lambda x: x['pos'])
+        for k in range(min(len(rf), len(sf))):
+            matched_width[rf[k]['idx']] = sf[k]['w']
+
+    # 畫標示
+    for rf in road_feats:
+        r = rf['poly']
+        i = rf['idx']
+        road_w = matched_width.get(i, road_width_from_polygon(r))
 
         label_pt = r.representative_point()
         ax.text(
