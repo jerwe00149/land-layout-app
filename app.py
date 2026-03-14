@@ -780,75 +780,51 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（以左側 roads_info 為主，逐條對應到右側灰路）
-if roads and roads_info:
-    road_feats = []
-    for i, r in enumerate(roads):
-        rminx, rminy, rmaxx, rmaxy = r.bounds
-        rc = r.centroid
-        typ = 'V' if (rmaxy - rminy) > (rmaxx - rminx) else 'H'
-        pos = rc.x if typ == 'V' else rc.y
-        road_feats.append({'idx': i, 'poly': r, 'typ': typ, 'pos': pos})
-
-    used = set()
-    # 逐條設定去找對應道路（左側 -> 右側）
+# 3.0 路寬標示（右圖道路寬度直接對應左側設定值）
+if roads:
+    # 取左側設定路寬
+    cfg_widths = []
     for info in roads_info:
-        if len(info) < 3:
-            continue
-        t = str(info[0]).upper()
-        t = 'V' if t.startswith('V') else ('H' if t.startswith('H') else t)
-        try:
-            set_pos = float(info[1])
-            set_w = float(info[2])
-        except Exception:
-            continue
+        if len(info) >= 3:
+            try:
+                cfg_widths.append(float(info[2]))
+            except Exception:
+                pass
 
-        candidates = [rf for rf in road_feats if rf['typ'] == t and rf['idx'] not in used]
-        if not candidates:
-            continue
-        # 依設定位置找最近那條道路
-        target = min(candidates, key=lambda rf: abs(rf['pos'] - set_pos))
-        used.add(target['idx'])
+    # 現有道路量測寬度（僅用於排序配對，不直接當最終值）
+    road_items = []
+    for r in roads:
+        mw = road_width_from_polygon(r)
+        road_items.append({'poly': r, 'mw': mw})
 
-        label_pt = target['poly'].representative_point()
+    # 配對策略：
+    # - 當道路數 == 設定數：兩邊都由小到大一一配對（最穩定，1.5/6 不會對調）
+    # - 否則：取最近設定值
+    assigned = []
+    if cfg_widths and len(cfg_widths) == len(road_items):
+        roads_sorted = sorted(road_items, key=lambda x: x['mw'])
+        cfg_sorted = sorted(cfg_widths)
+        for ritem, w in zip(roads_sorted, cfg_sorted):
+            assigned.append((ritem['poly'], w))
+    elif cfg_widths:
+        for ritem in road_items:
+            w = min(cfg_widths, key=lambda cw: abs(cw - ritem['mw']))
+            assigned.append((ritem['poly'], w))
+    else:
+        for ritem in road_items:
+            assigned.append((ritem['poly'], round(ritem['mw'], 1)))
+
+    for r, w in assigned:
+        label_pt = r.representative_point()
         ax.text(
             label_pt.x, label_pt.y,
-            f"路寬 {set_w:.1f}m",
+            f"路寬 {float(w):.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
             zorder=20
         )
 
-# 3.1 標註街廓區域（改為依 lot 的 block_id 聚合，避免 D 區遺失）
-from collections import defaultdict
-block_polys = defaultdict(list)
-for lot_tuple in lots:
-    if len(lot_tuple) == 4:
-        lot, _adx, _ady, bid = lot_tuple
-    else:
-        lot, _adx, _ady = lot_tuple
-        bid = 1
-    # 只聚合有效地塊（與上方繪圖條件一致）
-    if lot.area * 0.3025 >= min_ping:
-        block_polys[bid].append(lot)
-
-for bid in sorted(block_polys.keys()):
-    geoms = block_polys[bid]
-    if not geoms:
-        continue
-    union_geom = shapely.ops.unary_union(geoms)
-    centroid = union_geom.centroid
-    block_label = block_id_to_letter(bid)
-    ax.text(
-        centroid.x, centroid.y,
-        f"{block_label}區",
-        ha='center', va='center',
-        fontsize=14, fontweight='bold',
-        color='darkblue',
-        bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.5', alpha=0.8),
-        zorder=16
-    )
 
 ax.set_aspect('equal')
 ax.axis('off')
