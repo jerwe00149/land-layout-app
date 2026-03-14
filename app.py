@@ -776,32 +776,29 @@ for lot_tuple in lots:
         ax.text(centroid.x, centroid.y, f"畸零\n{area_ping:.1f}p", ha='center', va='center', fontsize=5, color='gray', zorder=5)
 
 # 3. 畫道路
-for i, r in enumerate(roads):
+for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-    # 道路寬度標示
-    # DXF 匯入：以幾何量測為準（避免沿用舊 roads_info 導致 1.5/6 對調）
-    if st.session_state.get('loaded_from_dxf', False):
-        road_w = round(road_width_from_polygon(r), 1)
-    else:
-        # 參數生成：用左側設定值
-        cfg_w = configured_road_width_for_polygon(r, roads_info)
-        if cfg_w is not None:
-            road_w = float(cfg_w)
-        else:
-            road_w = round(road_width_from_polygon(r), 1)
-
-    # 路寬標示放在道路中心線附近（道路幾何中心）
-    label_pt = r.representative_point()
-    ax.text(
-        label_pt.x, label_pt.y,
-        f"路寬 {road_w:.1f}m",
-        ha='center', va='center',
-        fontsize=8, fontweight='bold', color='red',
-        bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
-        zorder=20
-    )
+# 3.0 路寬標示（直接用左側設定值，不用幾何量測）
+if roads_info:
+    bminx, bminy, bmaxx, bmaxy = base_polygon.bounds
+    for info in roads_info:
+        if len(info) < 3:
+            continue
+        typ, pos, w = info[0], float(info[1]), float(info[2])
+        if typ == 'V':
+            x, y = pos, (bminy + bmaxy) / 2
+        else:  # 'H'
+            x, y = (bminx + bmaxx) / 2, pos
+        ax.text(
+            x, y,
+            f"路寬 {w:.1f}m",
+            ha='center', va='center',
+            fontsize=8, fontweight='bold', color='red',
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
+            zorder=20
+        )
 
 # 3.1 標註街廓區域（改為依 lot 的 block_id 聚合，避免 D 區遺失）
 from collections import defaultdict
