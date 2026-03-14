@@ -232,7 +232,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
+def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping, roads_info=None):
     doc = ezdxf.new('R2013')
     dxf_block_counts = {}
     
@@ -283,10 +283,11 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
         build_poly = shapely.affinity.scale(lot, xfact=xf, yfact=yf, origin='centroid')
         build_poly = build_poly.intersection(lot)
         
-        # 收集街廓面寬統計
-        if block_id not in block_width_stats:
-            block_width_stats[block_id] = []
-        block_width_stats[block_id].append(round(lot_width, 1))
+        # 計算地塊面寬（短邊）
+        lot_w = lot_maxx - lot_minx
+        lot_h = lot_maxy - lot_miny
+        lot_width = min(lot_w, lot_h)
+        lot_depth = max(lot_w, lot_h)
         
         # 建築物
         if build_poly.geom_type == 'Polygon':
@@ -306,6 +307,7 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
         msp.add_text(f"{block_id_to_letter(block_id)}區-{dxf_block_counts[block_id]}", dxfattribs={'layer': 'TEXT', 'height': 60}).set_placement((centroid.x*100-150, centroid.y*100+100))
         msp.add_text(f"土地:{area_ping:.1f}p", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100))
         msp.add_text(f"建築:{build_ping:.1f}p", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100-100))
+        msp.add_text(f"面寬:{lot_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100-200))
         
         # 面寬標線
         b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
@@ -320,6 +322,30 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping):
             msp.add_line((b_minx*100, dim_y*100), (b_maxx*100, dim_y*100), dxfattribs={'layer': 'DIMENSION'})
             msp.add_text(f"{b_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((centroid.x*100, dim_y*100+10))
             
+    # 道路寬度標註
+    if roads_info:
+        site_bounds = base_poly.bounds
+        site_cx = (site_bounds[0] + site_bounds[2]) / 2
+        site_cy = (site_bounds[1] + site_bounds[3]) / 2
+        
+        doc.layers.add('ROAD_LABEL', color=1)
+        for ri in roads_info:
+            if len(ri) < 3:
+                continue
+            direction = str(ri[0]).upper()
+            pos = float(ri[1])
+            width = float(ri[2])
+            
+            if direction.startswith('V'):
+                lx, ly = pos, site_cy
+            else:
+                lx, ly = site_cx, pos
+            
+            msp.add_text(
+                f"路寬 {width:.1f}m",
+                dxfattribs={'layer': 'ROAD_LABEL', 'height': 80}
+            ).set_placement((lx*100, ly*100))
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix='.dxf') as tmp:
         doc.saveas(tmp.name)
         return tmp.name
@@ -758,10 +784,11 @@ for lot_tuple in lots:
         build_poly = shapely.affinity.scale(lot, xfact=xf, yfact=yf, origin='centroid')
         build_poly = build_poly.intersection(lot)
         
-        # 收集街廓面寬統計
-        if block_id not in block_width_stats:
-            block_width_stats[block_id] = []
-        block_width_stats[block_id].append(round(lot_width, 1)) 
+        # 計算地塊面寬（短邊）
+        lot_w = lot_maxx - lot_minx
+        lot_h = lot_maxy - lot_miny
+        lot_width = min(lot_w, lot_h)
+        lot_depth = max(lot_w, lot_h) 
         
         if build_poly.geom_type == 'Polygon':
             bx, by = get_polygon_coords(build_poly)
@@ -1065,7 +1092,7 @@ if lots:
 
 
 # DXF Export
-dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping, roads_info)
 with open(dxf_file, "rb") as file:
     btn = st.sidebar.download_button(
         label="下載 DXF 檔 (支援分圖層, 可轉 DWG)",
@@ -1099,7 +1126,7 @@ def create_project_zip():
         zipf.writestr("project_params.json", json.dumps(params, ensure_ascii=False, indent=2))
         
         # 2. DXF 檔案
-        dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping)
+        dxf_file = generate_dxf(base_polygon, lots, roads, coverage_ratio, min_ping, roads_info)
         with open(dxf_file, 'rb') as f:
             zipf.writestr("layout_plan.dxf", f.read())
         
