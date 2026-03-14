@@ -636,6 +636,13 @@ else:
 # 將小塊灰地自動併入鄰近地塊
 lots = merge_small_lots_into_neighbors(lots, min_ping)
 
+# DEBUG: 顯示載入的地塊街廓分佈
+_dbg_bids = {}
+for _lt in lots:
+    _bid = _lt[3] if len(_lt) == 4 else 0
+    _dbg_bids[_bid] = _dbg_bids.get(_bid, 0) + 1
+st.sidebar.info(f"🔍 渲染用街廓: {', '.join(f'{chr(64+k) if k>0 else "?"}'+'='+str(v) for k,v in sorted(_dbg_bids.items()))}")
+
 # 顯示參考圖片（如果有）
 if 'reference_image' in st.session_state:
     with st.expander("📷 參考圖片（匯入時的原始圖面）", expanded=False):
@@ -830,9 +837,9 @@ if roads:
         is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
 
         if is_vertical:
-            road_w = v_width if v_width is not None else round(road_width_from_polygon(r), 1)
+            road_w = v_width if v_width is not None else 6.0
         else:
-            road_w = h_width if h_width is not None else round(road_width_from_polygon(r), 1)
+            road_w = h_width if h_width is not None else 6.0
 
         label_pt = r.representative_point()
         ax.text(
@@ -1202,8 +1209,11 @@ if uploaded_project is not None:
                 if roads_from_dxf:
                     st.session_state['imported_roads'] = roads_from_dxf
                 
-                # 清理臨時檔案
+                # 保留臨時檔案供調試
                 import os
+                import shutil
+                debug_dxf = '/tmp/last_imported.dxf'
+                shutil.copy2(temp_dxf.name, debug_dxf)
                 os.unlink(temp_dxf.name)
                 
                 # 標記為已載入 DXF
@@ -1214,33 +1224,67 @@ if uploaded_project is not None:
                     roads = st.session_state['imported_roads']
                     base_polygon = Polygon(st.session_state['base_coords'])
                     
-                    # 反推道路參數
+                    # 反推道路參數（從地塊間隙分析，而非道路多邊形）
                     inferred_roads_info = []
-                    for r in roads:
-                        rminx, rminy, rmaxx, rmaxy = r.bounds
-                        rc = r.centroid
-                        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
+                    
+                    if 'imported_lots' in st.session_state:
+                        imp_lots = st.session_state['imported_lots']
+                        lot_polys = [lt[0] for lt in imp_lots]
                         
-                        # 計算寬度
-                        try:
-                            mrr = r.minimum_rotated_rectangle
-                            coords = list(mrr.exterior.coords)
-                            if len(coords) >= 5:
-                                lens = []
-                                for i in range(4):
-                                    x1, y1 = coords[i]
-                                    x2, y2 = coords[i+1]
-                                    lens.append(((x2-x1)**2 + (y2-y1)**2)**0.5)
-                                road_w = min(lens)
+                        # 收集所有地塊邊界
+                        all_bounds = [lp.bounds for lp in lot_polys]
+                        
+                        # 分析垂直間隙（X 方向）→ 找直向道路
+                        x_edges = []
+                        for b in all_bounds:
+                            x_edges.append(('L', b[0]))  # left
+                            x_edges.append(('R', b[2]))  # right
+                        x_edges.sort(key=lambda e: e[1])
+                        
+                        # 找明顯的 X 間隙（右邊界 → 左邊界之間 > 1m）
+                        rights = sorted(set(round(e[1], 1) for e in x_edges if e[0] == 'R'))
+                        lefts = sorted(set(round(e[1], 1) for e in x_edges if e[0] == 'L'))
+                        
+                        for r_val in rights:
+                            for l_val in lefts:
+                                gap = l_val - r_val
+                                if 1.0 < gap < 20.0:
+                                    pos = (r_val + l_val) / 2
+                                    inferred_roads_info.append(('V', round(pos, 1), round(gap, 1)))
+                        
+                        # 分析水平間隙（Y 方向）→ 找橫向道路
+                        y_tops = sorted(set(round(b[3], 1) for b in all_bounds))
+                        y_bots = sorted(set(round(b[1], 1) for b in all_bounds))
+                        
+                        for t_val in y_tops:
+                            for b_val in y_bots:
+                                gap = b_val - t_val
+                                if 1.0 < gap < 20.0:
+                                    pos = (t_val + b_val) / 2
+                                    inferred_roads_info.append(('H', round(pos, 1), round(gap, 1)))
+                        
+                        # 去重（相近的道路合併）
+                        deduped = []
+                        for ri in inferred_roads_info:
+                            is_dup = False
+                            for dr in deduped:
+                                if ri[0] == dr[0] and abs(ri[1] - dr[1]) < 3.0:
+                                    is_dup = True
+                                    break
+                            if not is_dup:
+                                deduped.append(ri)
+                        inferred_roads_info = deduped
+                    
+                    # 如果沒推出來，用預設值
+                    if not inferred_roads_info:
+                        for r in roads:
+                            rminx, rminy, rmaxx, rmaxy = r.bounds
+                            rc = r.centroid
+                            is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
+                            if is_vertical:
+                                inferred_roads_info.append(('V', round(rc.x, 1), 6.0))
                             else:
-                                road_w = 6.0
-                        except Exception:
-                            road_w = 6.0
-                        
-                        if is_vertical:
-                            inferred_roads_info.append(('V', rc.x, round(road_w, 1)))
-                        else:
-                            inferred_roads_info.append(('H', rc.y, round(road_w, 1)))
+                                inferred_roads_info.append(('H', round(rc.y, 1), 6.0))
                     
                     # 回填 roads_info（供路寬標註使用）
                     if inferred_roads_info:
