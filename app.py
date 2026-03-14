@@ -810,44 +810,41 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=4)
 
-# 3.0 路寬標示（每條道路中心都要顯示）
+# 3.0 路寬標示（用位置配對，不用幾何方向判斷）
 if roads:
-    # 優先用左側設定值，其次用 session_state 中 DXF 反推的值，最後用幾何量測
-    v_width = None
-    h_width = None
-    
-    # 來源1: 左側 sidebar 目前的 roads_info
+    # 收集所有設定的道路（含方向、位置、寬度）
     active_roads_info = roads_info if roads_info else []
-    # 來源2: session_state 中的 roads_info（DXF 反推值）
     if not active_roads_info:
         active_roads_info = st.session_state.get('roads_info', [])
     
-    for info in active_roads_info:
-        if len(info) < 3:
-            continue
-        t = str(info[0]).upper()
-        try:
-            w = float(info[2])
-        except Exception:
-            continue
-        if t.startswith('V') and v_width is None:
-            v_width = w
-        if t.startswith('H') and h_width is None:
-            h_width = w
-
+    v_roads_cfg = [(float(r[1]), float(r[2])) for r in active_roads_info if len(r)>=3 and str(r[0]).upper().startswith('V')]
+    h_roads_cfg = [(float(r[1]), float(r[2])) for r in active_roads_info if len(r)>=3 and str(r[0]).upper().startswith('H')]
+    
     for r in roads:
-        rminx, rminy, rmaxx, rmaxy = r.bounds
-        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
-
-        if is_vertical:
-            road_w = v_width if v_width is not None else 6.0
-        else:
-            road_w = h_width if h_width is not None else 6.0
-
+        rc = r.centroid
+        
+        # 嘗試配對到最近的設定道路（用中心座標判斷）
+        best_w = 6.0
+        best_dist = float('inf')
+        
+        # 與 V 道路配對（比較 X 座標）
+        for pos, w in v_roads_cfg:
+            dist = abs(rc.x - pos)
+            if dist < best_dist:
+                best_dist = dist
+                best_w = w
+        
+        # 與 H 道路配對（比較 Y 座標）
+        for pos, w in h_roads_cfg:
+            dist = abs(rc.y - pos)
+            if dist < best_dist:
+                best_dist = dist
+                best_w = w
+        
         label_pt = r.representative_point()
         ax.text(
             label_pt.x, label_pt.y,
-            f"路寬 {float(road_w):.1f}m",
+            f"路寬 {float(best_w):.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
