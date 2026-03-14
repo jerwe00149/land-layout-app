@@ -814,9 +814,7 @@ if 'reference_image' in st.session_state:
         st.image(st.session_state['reference_image'], caption="原始規劃圖面", width="stretch")
         st.caption("💡 可對照此圖微調參數")
 
-try:
-    _render_ok = True
-    fig, ax = plt.subplots(figsize=(10, 7))
+fig, ax = plt.subplots(figsize=(10, 7))
 
 # 1. 畫基地外框
 x, y = get_polygon_coords(base_polygon)
@@ -1115,11 +1113,7 @@ with col_chart:
         st.error(f"圖表渲染錯誤: {e}")
         import traceback
         st.code(traceback.format_exc())
-except Exception as _render_err:
-    _render_ok = False
-    st.error(f"🔴 渲染過程發生錯誤: {_render_err}")
-    import traceback
-    st.code(traceback.format_exc())
+
 
 
 
