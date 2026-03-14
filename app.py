@@ -1138,6 +1138,65 @@ if uploaded_project is not None:
                 
                 # 標記為已載入 DXF
                 st.session_state['loaded_from_dxf'] = True
+
+                # DXF 匯入後：反推參數並同步回左側欄位
+                if 'imported_roads' in st.session_state and 'base_coords' in st.session_state:
+                    roads = st.session_state['imported_roads']
+                    base_polygon = Polygon(st.session_state['base_coords'])
+                    
+                    # 反推道路參數
+                    inferred_roads_info = []
+                    for r in roads:
+                        rminx, rminy, rmaxx, rmaxy = r.bounds
+                        rc = r.centroid
+                        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
+                        
+                        # 計算寬度
+                        try:
+                            mrr = r.minimum_rotated_rectangle
+                            coords = list(mrr.exterior.coords)
+                            if len(coords) >= 5:
+                                lens = []
+                                for i in range(4):
+                                    x1, y1 = coords[i]
+                                    x2, y2 = coords[i+1]
+                                    lens.append(((x2-x1)**2 + (y2-y1)**2)**0.5)
+                                road_w = min(lens)
+                            else:
+                                road_w = 6.0
+                        except Exception:
+                            road_w = 6.0
+                        
+                        if is_vertical:
+                            inferred_roads_info.append(('V', rc.x, round(road_w, 1)))
+                        else:
+                            inferred_roads_info.append(('H', rc.y, round(road_w, 1)))
+                    
+                    # 回填 roads_info（供路寬標註使用）
+                    if inferred_roads_info:
+                        st.session_state['roads_info'] = inferred_roads_info
+                        st.session_state['road_count'] = len(inferred_roads_info)
+                    
+                    # 反推基地尺寸
+                    bminx, bminy, bmaxx, bmaxy = base_polygon.bounds
+                    st.session_state['base_width'] = round(bmaxx - bminx, 1)
+                    st.session_state['base_height'] = round(bmaxy - bminy, 1)
+                    
+                    # 反推最小坪數
+                    if 'imported_lots' in st.session_state:
+                        lots = st.session_state['imported_lots']
+                        valid_areas = []
+                        for lot_tuple in lots:
+                            poly = lot_tuple[0]
+                            area_ping = poly.area * 0.3025
+                            if area_ping >= 10:
+                                valid_areas.append(area_ping)
+                        if valid_areas:
+                            median_area = sorted(valid_areas)[len(valid_areas)//2]
+                            st.session_state['min_ping'] = max(15, round(median_area * 0.6, 0))
+                        else:
+                            st.session_state['min_ping'] = 20
+                
                 st.session_state['last_loaded_file'] = file_id
                 
                 st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
