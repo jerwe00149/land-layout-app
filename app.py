@@ -609,11 +609,44 @@ else:
     block_params = None
 
 # 檢查是否從 DXF 載入
+use_dxf_geometry = False
 if st.session_state.get('loaded_from_dxf', False):
-    # 使用 DXF 的幾何
+    # 偵測左側參數是否被使用者改過
+    snap = st.session_state.get('dxf_snapshot', {})
+    params_changed = False
+    
+    if snap:
+        # 比較道路設定
+        snap_ri = snap.get('roads_info', [])
+        if len(roads_info) != len(snap_ri):
+            params_changed = True
+        else:
+            for a, b in zip(roads_info, snap_ri):
+                if len(a) >= 3 and len(b) >= 3:
+                    if abs(float(a[1]) - float(b[1])) > 0.01 or abs(float(a[2]) - float(b[2])) > 0.01:
+                        params_changed = True
+                        break
+        
+        # 比較面寬/深度/最小坪數
+        if snap.get('width_req') and abs(width_req - float(snap['width_req'])) > 0.01:
+            params_changed = True
+        if snap.get('depth_req') and abs(depth_req - float(snap['depth_req'])) > 0.01:
+            params_changed = True
+        if snap.get('min_ping') and abs(min_ping - float(snap['min_ping'])) > 0.5:
+            params_changed = True
+    
+    if params_changed:
+        # 使用者改了左側參數 → 切換到參數生成模式
+        use_dxf_geometry = False
+        st.info("📐 偵測到參數調整，已重新生成佈局")
+    else:
+        use_dxf_geometry = True
+
+if use_dxf_geometry:
+    # 使用 DXF 的精確幾何（與原圖一模一樣）
     lots = st.session_state.get('imported_lots', [])
     roads = st.session_state.get('imported_roads', [])
-    st.info("📂 使用 DXF 匯入的幾何（原始佈局）")
+    st.info("📂 使用 DXF 匯入的幾何（原始佈局）— 調整左側參數可重新生成")
 else:
     # 使用參數生成
     lots, roads = generate_layout(
@@ -1137,7 +1170,7 @@ if uploaded_project is not None:
                 os.unlink(temp_dxf.name)
                 
                 # 標記為已載入 DXF
-                st.session_state['loaded_from_dxf'] = False  # 不鎖定，允許左側調整
+                st.session_state['loaded_from_dxf'] = True
 
                 # DXF 匯入後：反推參數並同步回左側欄位
                 if 'imported_roads' in st.session_state and 'base_coords' in st.session_state:
@@ -1211,8 +1244,16 @@ if uploaded_project is not None:
                 
                 st.session_state['last_loaded_file'] = file_id
                 
+                # 保存反推參數快照（用於偵測左側是否有改動）
+                st.session_state['dxf_snapshot'] = {
+                    'roads_info': list(st.session_state.get('roads_info', [])),
+                    'width_req': st.session_state.get('width_req'),
+                    'depth_req': st.session_state.get('depth_req'),
+                    'min_ping': st.session_state.get('min_ping'),
+                }
+                
                 st.sidebar.success(f"✅ 已載入 DXF 幾何：{uploaded_project.name}")
-                st.sidebar.info("💡 左側參數已同步，可直接調整")
+                st.sidebar.info("💡 左側參數已同步，調整參數後會自動重新生成")
                 st.rerun()
             else:
                 st.sidebar.error('❌ 目前僅支援 DXF 匯入')
