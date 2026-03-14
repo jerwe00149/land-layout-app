@@ -651,21 +651,35 @@ else:
 
 # 檢查是否從 DXF 載入
 if st.session_state.get('loaded_from_dxf', False):
-    # 檢查使用者是否動了左側參數（與 DXF 反推的快照比較）
-    use_dxf = st.checkbox("📂 使用 DXF 原始幾何", value=True, key="_use_dxf_geo")
+    # 比較目前 slider 值和 DXF 快照
+    dxf_snapshot = st.session_state.get('_dxf_roads_snapshot', [])
+    params_changed = False
     
-    if use_dxf:
+    if dxf_snapshot and roads_info:
+        if len(roads_info) != len(dxf_snapshot):
+            params_changed = True
+        else:
+            for curr, snap in zip(roads_info, dxf_snapshot):
+                if curr[0] != snap[0] or abs(float(curr[1]) - float(snap[1])) > 0.5 or abs(float(curr[2]) - float(snap[2])) > 0.1:
+                    params_changed = True
+                    break
+    
+    if not params_changed:
+        # 沒改 → DXF 原始幾何
         lots = st.session_state.get('imported_lots', [])
         roads = st.session_state.get('imported_roads', [])
-        st.info("📂 顯示 DXF 原始佈局 — 取消勾選可用左側參數重新生成")
+        st.info("📂 DXF 原始佈局 — 調整左側參數即可重新生成")
     else:
+        # 改了 → 自動重新生成
         lots, roads = generate_layout(
             base_polygon, width_req, depth_req, 
             roads_info, min_ping, auto_orient, auto_merge, block_params
         , st.session_state.get("custom_lot_widths"))
-        st.info("📐 使用左側參數生成佈局 — 勾選可恢復 DXF 原始幾何")
+        st.info("📐 參數已調整，使用重新生成佈局")
+        if st.button("↩️ 恢復 DXF 原始幾何"):
+            st.session_state['_dxf_clear_widget_keys'] = True
+            st.rerun()
 else:
-    # 使用參數生成
     lots, roads = generate_layout(
         base_polygon, width_req, depth_req, 
         roads_info, min_ping, auto_orient, auto_merge, block_params
@@ -1351,6 +1365,7 @@ if uploaded_project is not None:
                     # 回填 roads_info（供路寬標註使用）
                     if inferred_roads_info:
                         st.session_state['roads_info'] = inferred_roads_info
+                        st.session_state['_dxf_roads_snapshot'] = list(inferred_roads_info)
                         st.session_state['road_count'] = len(inferred_roads_info)
                         
                         # 標記需要清除舊 slider keys（下次 rerun 開頭執行）
