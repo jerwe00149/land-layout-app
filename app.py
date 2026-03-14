@@ -777,12 +777,15 @@ if st.session_state.get('loaded_from_dxf', False):
                 params_changed = True
                 break
     
-    # 檢查各街廓參數
+    # 檢查各街廓參數（用獨立快照比對，避免浮點誤差）
     if not params_changed and block_params:
-        snap_bp = dxf_snap.get('block_params', {})
+        snap_bp = st.session_state.get('_dxf_block_params_snapshot', {})
         for bid, (bw, bd) in block_params.items():
-            snap_bw, snap_bd = snap_bp.get(str(bid), snap_bp.get(bid, (bw, bd)))
-            if abs(float(bw) - float(snap_bw)) > 0.05 or abs(float(bd) - float(snap_bd)) > 0.05:
+            snap_vals = snap_bp.get(bid, snap_bp.get(str(bid)))
+            if snap_vals is None:
+                continue
+            snap_bw, snap_bd = snap_vals
+            if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.05 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.05:
                 params_changed = True
                 break
     
@@ -800,10 +803,14 @@ if st.session_state.get('loaded_from_dxf', False):
         
         # 找出哪些街廓被修改了
         changed_blocks = set()
+        snap_bp_immutable = st.session_state.get('_dxf_block_params_snapshot', {})
         if block_params:
             for bid, (bw, bd) in block_params.items():
-                snap_bw, snap_bd = snap_bp.get(str(bid), snap_bp.get(bid, (bw, bd)))
-                if abs(float(bw) - float(snap_bw)) > 0.05 or abs(float(bd) - float(snap_bd)) > 0.05:
+                snap_vals = snap_bp_immutable.get(bid, snap_bp_immutable.get(str(bid)))
+                if snap_vals is None:
+                    continue
+                snap_bw, snap_bd = snap_vals
+                if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.05 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.05:
                     changed_blocks.add(bid)
         
         # 檢查全域參數是否改了（面寬/深度/坪數/道路）
@@ -1597,6 +1604,8 @@ if uploaded_project is not None:
                             inferred_block_params[bid] = (float(med_w), float(med_d))
                         
                         st.session_state['block_params'] = inferred_block_params
+                        # 獨立快照，widget 值不會覆蓋這個
+                        st.session_state['_dxf_block_params_snapshot'] = {k: (round(v[0], 1), round(v[1], 1)) for k, v in inferred_block_params.items()}
                 
                 st.session_state['last_loaded_file'] = file_id
                 
