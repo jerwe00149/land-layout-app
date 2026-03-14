@@ -115,6 +115,31 @@ import shapely.ops
 import shapely.affinity
 
 
+def configured_road_width_for_polygon(r, roads_info):
+    """依道路方向/位置，從左側設定 roads_info 取對應路寬。"""
+    if not roads_info:
+        return None
+    r_minx, r_miny, r_maxx, r_maxy = r.bounds
+    rc = r.centroid
+    # 道路長向判斷：高>寬 視為直向(V)，反之橫向(H)
+    is_vertical = (r_maxy - r_miny) > (r_maxx - r_minx)
+
+    candidates = []
+    for info in roads_info:
+        if len(info) < 3:
+            continue
+        typ, pos, w = info[0], float(info[1]), float(info[2])
+        if is_vertical and typ == 'V':
+            candidates.append((abs(rc.x - pos), w))
+        if (not is_vertical) and typ == 'H':
+            candidates.append((abs(rc.y - pos), w))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0])
+    return candidates[0][1]
+
+
 def road_width_from_polygon(poly):
     """估算道路寬度：取最小外接旋轉矩形的短邊。"""
     try:
@@ -755,9 +780,10 @@ for i, r in enumerate(roads):
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-    # 道路寬度標示：優先使用左側設定值（roads_info），避免幾何量測誤差
-    if i < len(roads_info):
-        road_w = float(roads_info[i][2])
+    # 道路寬度標示：優先用左側設定值（依方向/位置配對），不是路長
+    cfg_w = configured_road_width_for_polygon(r, roads_info)
+    if cfg_w is not None:
+        road_w = float(cfg_w)
     else:
         road_w = round(road_width_from_polygon(r), 1)
 
