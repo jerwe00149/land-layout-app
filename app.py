@@ -348,7 +348,14 @@ def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, b
     lots = []
     block_id = 1
     if not blocks_poly.is_empty:
-        block_geoms = [blocks_poly] if blocks_poly.geom_type == 'Polygon' else list(blocks_poly.geoms)
+        # 對街廓幾何排序（左→右，下→上），確保 block_id 在 DXF 匯入前後保持一致
+        if blocks_poly.geom_type == 'Polygon':
+            block_geoms = [blocks_poly]
+        else:
+            block_geoms = sorted(
+                list(blocks_poly.geoms),
+                key=lambda g: (round(g.centroid.x, 1), round(g.centroid.y, 1))
+            )
         
         for block in block_geoms:
             if block.area < 1.0:
@@ -520,7 +527,7 @@ with st.sidebar:
     roads_info = new_roads_info
 
     st.markdown("### 上傳基地")
-    uploaded_file = st.file_uploader("", type=['csv', 'json', 'dxf'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("上傳基地檔案", type=['csv', 'json', 'dxf'], label_visibility="collapsed")
 
 if 'base_coords' not in st.session_state:
     st.session_state.base_coords = [(0, 0), (120, 0), (130, 120), (20, 130), (0, 60)]
@@ -620,7 +627,7 @@ lots = merge_small_lots_into_neighbors(lots, min_ping)
 # 顯示參考圖片（如果有）
 if 'reference_image' in st.session_state:
     with st.expander("📷 參考圖片（匯入時的原始圖面）", expanded=False):
-        st.image(st.session_state['reference_image'], caption="原始規劃圖面", use_container_width=True)
+        st.image(st.session_state['reference_image'], caption="原始規劃圖面", width="stretch")
         st.caption("💡 可對照此圖微調參數")
 
 fig, ax = plt.subplots(figsize=(10, 7))
@@ -694,7 +701,8 @@ for lot_tuple in lots:
         # 標註地號（無背景框）
         text_label = f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p"
         ax.text(centroid.x, centroid.y, text_label, ha='center', va='center', 
-                fontsize=5, fontweight='bold', rotation=text_rot, color='black', zorder=15)
+                fontsize=5, fontweight='bold', rotation=text_rot, color='black', zorder=25,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.78, pad=0.3))
         
         
 
@@ -778,7 +786,7 @@ for lot_tuple in lots:
 # 3. 畫道路
 for r in roads:
     rx, ry = get_polygon_coords(r)
-    ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
+    ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=4)
 
 # 3.0 路寬標示（嚴格使用左側設定：V=直向寬度、H=橫向寬度）
 if roads and roads_info:
@@ -852,7 +860,10 @@ if block_width_stats:
     
     import pandas as pd
     df_analysis = pd.DataFrame(analysis_data)
-    st.dataframe(df_analysis, use_container_width=True, hide_index=True)
+    st.dataframe(df_analysis, width="stretch", hide_index=True)
+    st.session_state['_df_analysis_csv'] = df_analysis.to_csv(index=False, encoding='utf-8-sig')
+else:
+    st.session_state.pop('_df_analysis_csv', None)
 
 # 生成圖片以供下載
 buf = io.BytesIO()
@@ -921,7 +932,7 @@ if lots:
             "目前寬度(m)": st.column_config.NumberColumn("目前寬度(m)", disabled=True, format="%.1f"),
             "期望寬度(m)": st.column_config.NumberColumn("期望寬度(m)", min_value=3.0, max_value=20.0, format="%.1f"),
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     
@@ -978,8 +989,8 @@ def create_project_zip():
         zipf.writestr("layout_plan.png", buf_img.getvalue())
         
         # 4. 分析報表（如果有）
-        if 'df_analysis' in locals():
-            zipf.writestr("analysis_report.csv", df_analysis.to_csv(index=False, encoding='utf-8-sig'))
+        if '_df_analysis_csv' in st.session_state:
+            zipf.writestr("analysis_report.csv", st.session_state['_df_analysis_csv'])
     
     zip_buffer.seek(0)
     return zip_buffer.getvalue()
@@ -989,7 +1000,7 @@ st.sidebar.markdown("### 📦 專案打包")
 from datetime import datetime
 project_name = st.sidebar.text_input("專案名稱", value=f"排平圖_{datetime.now().strftime('%Y%m%d')}", key="project_name_input")
 
-if st.sidebar.button("🎁 打包下載", type="primary", use_container_width=True):
+if st.sidebar.button("🎁 打包下載", type="primary", width="stretch"):
     with st.spinner("正在打包..."):
         zip_data = create_project_zip()
         st.sidebar.download_button(
@@ -997,7 +1008,7 @@ if st.sidebar.button("🎁 打包下載", type="primary", use_container_width=Tr
             data=zip_data,
             file_name=f"{project_name}.zip",
             mime="application/zip",
-            use_container_width=True,
+            width="stretch",
             key="download_zip_btn"
         )
 st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
@@ -1194,7 +1205,7 @@ st.sidebar.caption("💡 僅支援上傳 DXF 檔案")
 
 # 清除 DXF 匯入
 if st.session_state.get('loaded_from_dxf', False):
-    if st.sidebar.button("🔄 切換回參數生成模式", use_container_width=True):
+    if st.sidebar.button("🔄 切換回參數生成模式", width="stretch"):
         st.session_state['loaded_from_dxf'] = False
         st.session_state.pop('imported_lots', None)
         st.session_state.pop('imported_roads', None)
