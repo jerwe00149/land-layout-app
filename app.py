@@ -620,15 +620,19 @@ else:
 
 # 檢查是否從 DXF 載入
 if st.session_state.get('loaded_from_dxf', False):
-    # DXF 模式：顯示精確幾何（與原圖一模一樣）
-    lots = st.session_state.get('imported_lots', [])
-    roads = st.session_state.get('imported_roads', [])
-    st.info("📂 使用 DXF 匯入的幾何（原始佈局）")
+    # 檢查使用者是否動了左側參數（與 DXF 反推的快照比較）
+    use_dxf = st.checkbox("📂 使用 DXF 原始幾何", value=True, key="_use_dxf_geo")
     
-    # 提供按鈕讓使用者切換到參數生成模式
-    if st.button("🔄 使用左側參數重新生成佈局"):
-        st.session_state['loaded_from_dxf'] = False
-        st.rerun()
+    if use_dxf:
+        lots = st.session_state.get('imported_lots', [])
+        roads = st.session_state.get('imported_roads', [])
+        st.info("📂 顯示 DXF 原始佈局 — 取消勾選可用左側參數重新生成")
+    else:
+        lots, roads = generate_layout(
+            base_polygon, width_req, depth_req, 
+            roads_info, min_ping, auto_orient, auto_merge, block_params
+        , st.session_state.get("custom_lot_widths"))
+        st.info("📐 使用左側參數生成佈局 — 勾選可恢復 DXF 原始幾何")
 else:
     # 使用參數生成
     lots, roads = generate_layout(
