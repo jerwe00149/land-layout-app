@@ -471,11 +471,39 @@ def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, b
 
 st.markdown("## 🏗️ 建築師排平圖系統 <span style='font-size: 14px; font-weight: normal; color: gray;'>（張哲維建築師事務所版權所有）</span>", unsafe_allow_html=True)
 
-# DXF 匯入後清除舊 slider widget keys（必須在 widget 建立前執行）
+# DXF 匯入後同步 slider widget keys（必須在 widget 建立前執行）
 if st.session_state.get('_dxf_clear_widget_keys', False):
+    ri = st.session_state.get('roads_info', [])
+    v_roads = [r for r in ri if str(r[0]).upper().startswith('V')]
+    h_roads = [r for r in ri if str(r[0]).upper().startswith('H')]
+    
+    # 覆寫 slider key 為 DXF 反推值（不是刪除，是直接設值）
+    for i, r in enumerate(v_roads):
+        st.session_state[f'vpos_{i}'] = round(float(r[1]))  # step=1.0
+        st.session_state[f'vw_{i}'] = round(float(r[2]) * 2) / 2  # step=0.5
+    for i, r in enumerate(h_roads):
+        st.session_state[f'hpos_{i}'] = round(float(r[1]))  # step=1.0
+        st.session_state[f'hw_{i}'] = round(float(r[2]) * 2) / 2  # step=0.5
+    
+    # 清除多餘的舊 key（如果之前有更多道路）
     for k in list(st.session_state.keys()):
-        if k.startswith(('vpos_', 'vw_', 'hpos_', 'hw_', 'bw_', 'bd_')):
-            del st.session_state[k]
+        if k.startswith('vpos_'):
+            idx = int(k.split('_')[1])
+            if idx >= len(v_roads):
+                del st.session_state[k]
+        elif k.startswith('vw_'):
+            idx = int(k.split('_')[1])
+            if idx >= len(v_roads):
+                del st.session_state[k]
+        elif k.startswith('hpos_'):
+            idx = int(k.split('_')[1])
+            if idx >= len(h_roads):
+                del st.session_state[k]
+        elif k.startswith('hw_'):
+            idx = int(k.split('_')[1])
+            if idx >= len(h_roads):
+                del st.session_state[k]
+    
     st.session_state['_dxf_clear_widget_keys'] = False
 
 with st.sidebar:
@@ -532,6 +560,9 @@ with st.sidebar:
     
     # 更新 roads_info
     roads_info = new_roads_info
+    # 同步回 session_state（確保路寬標示讀到最新值）
+    st.session_state['roads_info'] = new_roads_info
+    st.sidebar.caption(f"🔍 roads_info: {[(r[0], round(r[1],1), round(r[2],1)) for r in new_roads_info]}")
 
     st.markdown("### 上傳基地")
     uploaded_file = st.file_uploader("上傳基地檔案", type=['csv', 'json', 'dxf'], label_visibility="collapsed")
