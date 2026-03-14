@@ -764,139 +764,38 @@ else:
 
 # 檢查是否從 DXF 載入
 if st.session_state.get('loaded_from_dxf', False):
-    # 比較目前所有參數和 DXF 快照
-    dxf_snap = st.session_state.get('dxf_snapshot', {})
-    params_changed = False
+    # DXF 模式：用 resubdivide 重建所有街廓（左側參數即時連動）
+    imported_lots = st.session_state.get('imported_lots', [])
+    roads = st.session_state.get('imported_roads', [])
     
-    # 檢查道路
-    snap_roads = dxf_snap.get('roads_info', [])
-    if snap_roads and roads_info:
-        if len(roads_info) != len(snap_roads):
-            params_changed = True
-        else:
-            for curr, snap in zip(roads_info, snap_roads):
-                if curr[0] != snap[0] or abs(float(curr[1]) - float(snap[1])) > 0.5 or abs(float(curr[2]) - float(snap[2])) > 0.1:
-                    params_changed = True
-                    break
-    
-    # 檢查面寬/深度/坪數
-    if not params_changed:
-        for key in ['width_req', 'depth_req', 'min_ping']:
-            snap_val = dxf_snap.get(key)
-            curr_val = locals().get(key) or st.session_state.get(key)
-            if snap_val is not None and curr_val is not None and abs(float(curr_val) - float(snap_val)) > 0.05:
-                params_changed = True
-                break
-    
-    # 檢查各街廓參數（用獨立快照比對，避免浮點誤差）
-    if not params_changed and block_params:
-        snap_bp = st.session_state.get('_dxf_block_params_snapshot', {})
-        for bid, (bw, bd) in block_params.items():
-            snap_vals = snap_bp.get(bid, snap_bp.get(str(bid)))
-            if snap_vals is None:
-                continue
-            snap_bw, snap_bd = snap_vals
-            if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.01 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.01:
-                params_changed = True
-                break
-    
-    # DEBUG: 顯示變更偵測結果
-    _snap_bp = st.session_state.get('_dxf_block_params_snapshot', {})
-    _bp_status = []
-    if block_params:
-        for _bid in sorted(block_params.keys()):
-            _curr = block_params[_bid]
-            _snap = _snap_bp.get(_bid, _snap_bp.get(str(_bid), ('N/A', 'N/A')))
-            _diff = abs(round(float(_curr[0]),1) - round(float(_snap[0]),1)) if _snap[0] != 'N/A' else 0
-            _mark = '✏️' if _diff > 0.01 else '='
-            _bp_status.append(f"{_mark}{block_id_to_letter(_bid)}:w{_curr[0]}vs{_snap[0]}")
-    st.sidebar.caption(f"🔍 changed={params_changed} | bp={block_params is not None} | {' '.join(_bp_status)}")
-    
-    if not params_changed:
-        # 沒改 → DXF 原始幾何
-        lots = st.session_state.get('imported_lots', [])
-        roads = st.session_state.get('imported_roads', [])
-        st.info("📂 DXF 原始佈局 — 調整左側參數即可重新生成")
-        st.sidebar.caption(f"🔍 params_changed=False, blocks={dict((bid, len([l for l in lots if (l[3] if len(l)==4 else 1)==bid])) for bid in block_ids) if block_ids else {}}")
+    if block_params and imported_lots:
+        from shapely.ops import unary_union
+        lots = []
+        
+        # 按 block_id 分組
+        block_lot_polys = {}
+        for lt in imported_lots:
+            bid = lt[3] if len(lt) == 4 else 1
+            if bid not in block_lot_polys:
+                block_lot_polys[bid] = []
+            block_lot_polys[bid].append(lt[0])
+        
+        # 用左側參數重新分割每個街廓
+        for bid, polys in block_lot_polys.items():
+            block_poly = unary_union(polys)
+            bw, bd = block_params.get(bid, (width_req, depth_req))
+            new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
+            lots.extend(new_lots)
+        
+        st.info("📐 DXF 匯入 — 左側參數即時連動")
     else:
-        # 改了 → 只重新分割被修改的街廓，其他保持 DXF 原樣
-        imported_lots = st.session_state.get('imported_lots', [])
-        roads = st.session_state.get('imported_roads', [])
-        snap_bp = dxf_snap.get('block_params', {})
-        
-        # 找出哪些街廓被修改了
-        changed_blocks = set()
-        snap_bp_immutable = st.session_state.get('_dxf_block_params_snapshot', {})
-        if block_params:
-            for bid, (bw, bd) in block_params.items():
-                snap_vals = snap_bp_immutable.get(bid, snap_bp_immutable.get(str(bid)))
-                if snap_vals is None:
-                    continue
-                snap_bw, snap_bd = snap_vals
-                if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.01 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.01:
-                    changed_blocks.add(bid)
-        
-        # 檢查全域參數是否改了（面寬/深度/坪數/道路）
-        global_changed = False
-        for key in ['width_req', 'depth_req', 'min_ping']:
-            snap_val = dxf_snap.get(key)
-            curr_val = locals().get(key) or st.session_state.get(key)
-            if snap_val is not None and curr_val is not None and abs(float(curr_val) - float(snap_val)) > 0.05:
-                global_changed = True
-                break
-        snap_roads = dxf_snap.get('roads_info', [])
-        if snap_roads and roads_info and len(roads_info) != len(snap_roads):
-            global_changed = True
-        elif snap_roads and roads_info:
-            for curr, snap in zip(roads_info, snap_roads):
-                if curr[0] != snap[0] or abs(float(curr[1]) - float(snap[1])) > 0.5 or abs(float(curr[2]) - float(snap[2])) > 0.1:
-                    global_changed = True
-                    break
-        
-        if global_changed:
-            # 全域參數改了 → 全部重新生成
-            lots, roads = generate_layout(
-                base_polygon, width_req, depth_req,
-                roads_info, min_ping, auto_orient, auto_merge, block_params,
-                st.session_state.get("custom_lot_widths"))
-        else:
-            # 只有街廓參數改了 → 局部重新分割
-            lots = []
-            for lt in imported_lots:
-                bid = lt[3] if len(lt) == 4 else 1
-                if bid not in changed_blocks:
-                    lots.append(lt)
-            
-            # 重新分割被修改的街廓
-            from shapely.ops import unary_union
-            for bid in changed_blocks:
-                block_lots = [lt[0] for lt in imported_lots if (lt[3] if len(lt)==4 else 1) == bid]
-                if block_lots:
-                    block_poly = unary_union(block_lots)
-                    bw, bd = block_params.get(bid, (width_req, depth_req))
-                    new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
-                    lots.extend(new_lots)
-        
-        changed_info = f"changed_blocks={changed_blocks}" if not global_changed else "global_changed"
-        st.warning(f"⚠️ 參數已調整 ({changed_info})，重新產生佈局")
-        # Debug: show comparison
-        snap_bp_dbg = st.session_state.get('_dxf_block_params_snapshot', {})
-        if block_params:
-            dbg_lines = []
-            for bid in sorted(block_params.keys()):
-                curr = block_params[bid]
-                snap = snap_bp_dbg.get(bid, snap_bp_dbg.get(str(bid), ('?','?')))
-                changed = '✏️' if bid in changed_blocks else '✓'
-                dbg_lines.append(f"{changed}{block_id_to_letter(bid)}: w={curr[0]}→snap={snap[0]}, d={curr[1]}→snap={snap[1]}")
-            st.sidebar.caption(' | '.join(dbg_lines))
-        if st.button("↩️ 恢復 DXF 原始幾何"):
-            st.session_state['_dxf_clear_widget_keys'] = True
-            st.rerun()
+        lots = imported_lots
+        st.info("📂 DXF 原始佈局")
 else:
     lots, roads = generate_layout(
         base_polygon, width_req, depth_req, 
-        roads_info, min_ping, auto_orient, auto_merge, block_params
-    , st.session_state.get("custom_lot_widths"))
+        roads_info, min_ping, auto_orient, auto_merge, block_params,
+        st.session_state.get("custom_lot_widths"))
 
 # 將小塊灰地自動併入鄰近地塊
 lots = merge_small_lots_into_neighbors(lots, min_ping)
