@@ -865,7 +865,7 @@ if roads:
             zorder=20
         )
 
-# 4. 街廓區域大標示（A/B/C/D）
+# 4. 街廓區域大標示（A/B/C/D）- 確保標示在地塊區域內，不跑到道路上
 from shapely.ops import unary_union
 block_lot_polys = {}
 for lot_tuple in lots:
@@ -879,15 +879,29 @@ for lot_tuple in lots:
             block_lot_polys[block_id] = []
         block_lot_polys[block_id].append(lot)
 
+# 合併道路區域（用於排除）
+road_union = unary_union(roads) if roads else None
+
 for bid, polys in block_lot_polys.items():
     if not polys:
         continue
     merged = unary_union(polys)
-    c = merged.centroid
+    
+    # 確保標示點在地塊區域內（不在道路上）
+    label_pt = merged.representative_point()
+    
+    # 如果 representative_point 落在道路上，改用地塊合併區域的質心
+    if road_union and road_union.contains(label_pt):
+        label_pt = merged.centroid
+    
+    # 如果還是在道路上，嘗試用最大地塊的中心
+    if road_union and road_union.contains(label_pt):
+        biggest = max(polys, key=lambda p: p.area)
+        label_pt = biggest.representative_point()
+    
     letter = block_id_to_letter(bid)
-    # 大字體區域標示
     ax.text(
-        c.x, c.y, f"{letter}區",
+        label_pt.x, label_pt.y, f"{letter}區",
         ha='center', va='center',
         fontsize=18, fontweight='bold', color='navy',
         alpha=0.4, zorder=15
