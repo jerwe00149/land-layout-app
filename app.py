@@ -757,12 +757,24 @@ else:
 
 # 檢查是否從 DXF 載入
 if st.session_state.get('loaded_from_dxf', False):
-    # DXF 模式：用 resubdivide 重建所有街廓（左側參數即時連動）
     imported_lots = st.session_state.get('imported_lots', [])
     roads = st.session_state.get('imported_roads', [])
     
-    st.sidebar.caption(f"🔍 block_params={block_params is not None}, len={len(block_params) if block_params else 0}, imported={len(imported_lots)}")
-    if block_params and imported_lots:
+    # 記錄初始值（只在第一次設定）
+    if '_initial_block_params' not in st.session_state and block_params:
+        st.session_state['_initial_block_params'] = {bid: (round(bw, 1), round(bd, 1)) for bid, (bw, bd) in block_params.items()}
+    
+    initial_bp = st.session_state.get('_initial_block_params', {})
+    
+    # 找出使用者修改了哪些街廓
+    changed_blocks = set()
+    if block_params and initial_bp:
+        for bid, (bw, bd) in block_params.items():
+            init = initial_bp.get(bid)
+            if init and (abs(round(bw, 1) - init[0]) > 0.01 or abs(round(bd, 1) - init[1]) > 0.01):
+                changed_blocks.add(bid)
+    
+    if changed_blocks and imported_lots:
         from shapely.ops import unary_union
         lots = []
         
@@ -774,17 +786,22 @@ if st.session_state.get('loaded_from_dxf', False):
                 block_lot_polys[bid] = []
             block_lot_polys[bid].append(lt[0])
         
-        # 用左側參數重新分割每個街廓
+        # 沒改的 → 保持 DXF 原樣，改了的 → 重新分割
         for bid, polys in block_lot_polys.items():
-            block_poly = unary_union(polys)
-            bw, bd = block_params.get(bid, (width_req, depth_req))
-            new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
-            lots.extend(new_lots)
+            if bid in changed_blocks:
+                block_poly = unary_union(polys)
+                bw, bd = block_params.get(bid, (width_req, depth_req))
+                new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
+                lots.extend(new_lots)
+            else:
+                for lt in imported_lots:
+                    if (lt[3] if len(lt) == 4 else 1) == bid:
+                        lots.append(lt)
         
-        st.info("📐 DXF 匯入 — 左側參數即時連動")
+        st.info(f"📐 已調整 {','.join(block_id_to_letter(b) for b in changed_blocks)} 區")
     else:
         lots = imported_lots
-        st.info("📂 DXF 原始佈局")
+        st.info("📂 DXF 原始佈局 — 調整左側街廓參數即可重新生成")
 else:
     lots, roads = generate_layout(
         base_polygon, width_req, depth_req, 
