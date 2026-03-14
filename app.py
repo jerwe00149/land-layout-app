@@ -1222,8 +1222,7 @@ if uploaded_project is not None:
                 os.unlink(temp_dxf.name)
                 
                 # 標記為已載入 DXF
-                # DXF 匯入後不鎖定，允許左側調整即時更新右圖
-                st.session_state['loaded_from_dxf'] = False
+                st.session_state['loaded_from_dxf'] = True
 
                 # DXF 匯入後：反推參數並同步回左側欄位
                 if 'imported_roads' in st.session_state and 'base_coords' in st.session_state:
