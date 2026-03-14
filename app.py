@@ -780,35 +780,29 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（放在道路本體中心，文字吃左側設定值）
-if roads and roads_info:
-    used = set()
+# 3.0 路寬標示（每條灰色道路各自顯示）
+if roads:
+    # 取得可用設定路寬（如 1.5、6.0），用來把量測值對齊到設定值
+    cfg_widths = []
+    for info in roads_info:
+        if len(info) >= 3:
+            try:
+                cfg_widths.append(float(info[2]))
+            except Exception:
+                pass
+
     for r in roads:
-        rminx, rminy, rmaxx, rmaxy = r.bounds
-        rc = r.centroid
-        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
-
-        # 在 roads_info 找最匹配的那條設定，避免字跑到基地外
-        candidates = []
-        for idx, info in enumerate(roads_info):
-            if len(info) < 3 or idx in used:
-                continue
-            typ, pos, w = info[0], float(info[1]), float(info[2])
-            if is_vertical and typ == 'V':
-                candidates.append((abs(rc.x - pos), idx, w))
-            if (not is_vertical) and typ == 'H':
-                candidates.append((abs(rc.y - pos), idx, w))
-
-        if not candidates:
-            continue
-        candidates.sort(key=lambda t: t[0])
-        _, idx, w = candidates[0]
-        used.add(idx)
+        measured_w = road_width_from_polygon(r)
+        # 有設定值時：把量測寬度對齊到最近設定值，避免誤差
+        if cfg_widths:
+            road_w = min(cfg_widths, key=lambda w: abs(w - measured_w))
+        else:
+            road_w = measured_w
 
         label_pt = r.representative_point()
         ax.text(
             label_pt.x, label_pt.y,
-            f"路寬 {float(w):.1f}m",
+            f"路寬 {float(road_w):.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
