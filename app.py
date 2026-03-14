@@ -1225,7 +1225,8 @@ if uploaded_project is not None:
                 os.unlink(temp_dxf.name)
                 
                 # 標記為已載入 DXF
-                st.session_state['loaded_from_dxf'] = True
+                # DXF 匯入後不鎖定，允許左側調整即時更新右圖
+                st.session_state['loaded_from_dxf'] = False
 
                 # DXF 匯入後：反推參數並同步回左側欄位
                 if 'imported_roads' in st.session_state and 'base_coords' in st.session_state:
@@ -1303,6 +1304,14 @@ if uploaded_project is not None:
                                 if not is_dup:
                                     deduped.append(g)
                             inferred_roads_info.extend(deduped)
+                    
+                    # 路寬四捨五入到 0.5 倍數，最小 1.5m
+                    rounded_roads = []
+                    for ri in inferred_roads_info:
+                        w = ri[2]
+                        w = max(1.5, round(w * 2) / 2)  # 四捨五入到 0.5
+                        rounded_roads.append((ri[0], ri[1], w))
+                    inferred_roads_info = rounded_roads
                     
                     # 如果沒推出來，用預設值
                     if not inferred_roads_info:
