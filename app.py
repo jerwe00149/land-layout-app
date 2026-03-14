@@ -785,7 +785,7 @@ if st.session_state.get('loaded_from_dxf', False):
             if snap_vals is None:
                 continue
             snap_bw, snap_bd = snap_vals
-            if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.05 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.05:
+            if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.01 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.01:
                 params_changed = True
                 break
     
@@ -810,7 +810,7 @@ if st.session_state.get('loaded_from_dxf', False):
                 if snap_vals is None:
                     continue
                 snap_bw, snap_bd = snap_vals
-                if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.05 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.05:
+                if abs(round(float(bw), 1) - round(float(snap_bw), 1)) > 0.01 or abs(round(float(bd), 1) - round(float(snap_bd), 1)) > 0.01:
                     changed_blocks.add(bid)
         
         # 檢查全域參數是否改了（面寬/深度/坪數/道路）
@@ -856,6 +856,16 @@ if st.session_state.get('loaded_from_dxf', False):
         
         changed_info = f"changed_blocks={changed_blocks}" if not global_changed else "global_changed"
         st.warning(f"⚠️ 參數已調整 ({changed_info})，重新產生佈局")
+        # Debug: show comparison
+        snap_bp_dbg = st.session_state.get('_dxf_block_params_snapshot', {})
+        if block_params:
+            dbg_lines = []
+            for bid in sorted(block_params.keys()):
+                curr = block_params[bid]
+                snap = snap_bp_dbg.get(bid, snap_bp_dbg.get(str(bid), ('?','?')))
+                changed = '✏️' if bid in changed_blocks else '✓'
+                dbg_lines.append(f"{changed}{block_id_to_letter(bid)}: w={curr[0]}→snap={snap[0]}, d={curr[1]}→snap={snap[1]}")
+            st.sidebar.caption(' | '.join(dbg_lines))
         if st.button("↩️ 恢復 DXF 原始幾何"):
             st.session_state['_dxf_clear_widget_keys'] = True
             st.rerun()
