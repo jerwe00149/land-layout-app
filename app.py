@@ -780,20 +780,35 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（直接用左側設定值，不用幾何量測）
-if roads_info:
-    bminx, bminy, bmaxx, bmaxy = base_polygon.bounds
-    for info in roads_info:
-        if len(info) < 3:
+# 3.0 路寬標示（放在道路本體中心，文字吃左側設定值）
+if roads and roads_info:
+    used = set()
+    for r in roads:
+        rminx, rminy, rmaxx, rmaxy = r.bounds
+        rc = r.centroid
+        is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
+
+        # 在 roads_info 找最匹配的那條設定，避免字跑到基地外
+        candidates = []
+        for idx, info in enumerate(roads_info):
+            if len(info) < 3 or idx in used:
+                continue
+            typ, pos, w = info[0], float(info[1]), float(info[2])
+            if is_vertical and typ == 'V':
+                candidates.append((abs(rc.x - pos), idx, w))
+            if (not is_vertical) and typ == 'H':
+                candidates.append((abs(rc.y - pos), idx, w))
+
+        if not candidates:
             continue
-        typ, pos, w = info[0], float(info[1]), float(info[2])
-        if typ == 'V':
-            x, y = pos, (bminy + bmaxy) / 2
-        else:  # 'H'
-            x, y = (bminx + bmaxx) / 2, pos
+        candidates.sort(key=lambda t: t[0])
+        _, idx, w = candidates[0]
+        used.add(idx)
+
+        label_pt = r.representative_point()
         ax.text(
-            x, y,
-            f"路寬 {w:.1f}m",
+            label_pt.x, label_pt.y,
+            f"路寬 {float(w):.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
