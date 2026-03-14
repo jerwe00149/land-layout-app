@@ -36,6 +36,80 @@ def block_id_to_letter(block_id):
     return chr(64 + block_id)  # 65 is 'A'
 
 
+def merge_small_lots_into_neighbors(lots, min_ping):
+    """把小於最小坪數的灰色畸零地，併入同街廓最近/相鄰的有效地塊。"""
+    if not lots:
+        return lots
+
+    def unpack(lot_tuple):
+        if len(lot_tuple) == 4:
+            return lot_tuple[0], lot_tuple[1], lot_tuple[2], lot_tuple[3]
+        return lot_tuple[0], lot_tuple[1], lot_tuple[2], 1
+
+    parsed = [list(unpack(t)) for t in lots]  # [poly, dx, dy, bid]
+
+    valid_idx, small_idx = [], []
+    for i, (poly, dx, dy, bid) in enumerate(parsed):
+        area_ping = poly.area * 0.3025
+        if area_ping >= min_ping:
+            valid_idx.append(i)
+        else:
+            small_idx.append(i)
+
+    if not small_idx or not valid_idx:
+        return lots
+
+    removed = set()
+
+    for si in small_idx:
+        if si in removed:
+            continue
+        spoly, sdx, sdy, sbid = parsed[si]
+
+        # 優先找同街廓可相鄰併入者
+        candidates = []
+        for vi in valid_idx:
+            if vi in removed:
+                continue
+            vpoly, vdx, vdy, vbid = parsed[vi]
+            if vbid != sbid:
+                continue
+            dist = spoly.distance(vpoly)
+            candidates.append((dist, vi))
+
+        if not candidates:
+            # 同街廓找不到就找最近有效地（避免孤立灰地）
+            for vi in valid_idx:
+                if vi in removed:
+                    continue
+                vpoly, vdx, vdy, vbid = parsed[vi]
+                dist = spoly.distance(vpoly)
+                candidates.append((dist, vi))
+
+        if not candidates:
+            continue
+
+        candidates.sort(key=lambda x: x[0])
+        target_i = candidates[0][1]
+        tpoly, tdx, tdy, tbid = parsed[target_i]
+
+        merged = tpoly.union(spoly)
+        if merged.geom_type == 'MultiPolygon':
+            # 優先取最大塊，避免不連通碎片造成異常
+            merged = max(list(merged.geoms), key=lambda g: g.area)
+
+        parsed[target_i][0] = merged
+        removed.add(si)
+
+    out = []
+    for i, (poly, dx, dy, bid) in enumerate(parsed):
+        if i in removed:
+            continue
+        out.append((poly, dx, dy, bid))
+
+    return out
+
+
 import math
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, box
@@ -498,6 +572,9 @@ else:
         base_polygon, width_req, depth_req, 
         roads_info, min_ping, auto_orient, auto_merge, block_params
     , st.session_state.get("custom_lot_widths"))
+
+# 將小塊灰地自動併入鄰近地塊
+lots = merge_small_lots_into_neighbors(lots, min_ping)
 
 # 顯示參考圖片（如果有）
 if 'reference_image' in st.session_state:
