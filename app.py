@@ -662,29 +662,35 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.1 標註街廓區域
-# 計算每個街廓並標註
-blocks_poly = base_polygon.difference(shapely.ops.unary_union(roads) if roads else Polygon())
-if blocks_poly.geom_type == 'Polygon':
-    blocks = [blocks_poly]
-elif blocks_poly.geom_type == 'MultiPolygon':
-    blocks = list(blocks_poly.geoms)
-else:
-    blocks = []
+# 3.1 標註街廓區域（改為依 lot 的 block_id 聚合，避免 D 區遺失）
+from collections import defaultdict
+block_polys = defaultdict(list)
+for lot_tuple in lots:
+    if len(lot_tuple) == 4:
+        lot, _adx, _ady, bid = lot_tuple
+    else:
+        lot, _adx, _ady = lot_tuple
+        bid = 1
+    # 只聚合有效地塊（與上方繪圖條件一致）
+    if lot.area * 0.3025 >= min_ping:
+        block_polys[bid].append(lot)
 
-for block_idx, block in enumerate(blocks):
-    if block.area > 1:  # 過濾太小的區域
-        centroid = block.centroid
-        block_label = block_id_to_letter(block_idx + 1)
-        ax.text(
-            centroid.x, centroid.y,
-            f"{block_label}區",
-            ha='center', va='center',
-            fontsize=14, fontweight='bold',
-            color='darkblue',
-            bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.5', alpha=0.8),
-            zorder=15
-        )
+for bid in sorted(block_polys.keys()):
+    geoms = block_polys[bid]
+    if not geoms:
+        continue
+    union_geom = shapely.ops.unary_union(geoms)
+    centroid = union_geom.centroid
+    block_label = block_id_to_letter(bid)
+    ax.text(
+        centroid.x, centroid.y,
+        f"{block_label}區",
+        ha='center', va='center',
+        fontsize=14, fontweight='bold',
+        color='darkblue',
+        bbox=dict(facecolor='white', edgecolor='darkblue', boxstyle='round,pad=0.5', alpha=0.8),
+        zorder=16
+    )
 
 ax.set_aspect('equal')
 ax.axis('off')
