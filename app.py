@@ -533,7 +533,13 @@ for lot_tuple in lots:
         ax.fill(x, y, alpha=0.5, color='lightblue', edgecolor='black', zorder=2)
         
         lot_minx, lot_miny, lot_maxx, lot_maxy = lot.bounds
-        if abs(arrow_dx) > abs(arrow_dy):
+        # DXF 匯入時 arrow_dx/arrow_dy 可能為 0，改用地塊長寬比判斷方向
+        if abs(arrow_dx) < 1e-9 and abs(arrow_dy) < 1e-9:
+            horizontal = (lot_maxx - lot_minx) >= (lot_maxy - lot_miny)
+        else:
+            horizontal = abs(arrow_dx) > abs(arrow_dy)
+
+        if horizontal:
             # faces left/right -> scale X
             xf = coverage_ratio
             yf = 1.0
@@ -567,14 +573,10 @@ for lot_tuple in lots:
         # ax.text(centroid.x, centroid.y + 1.5, f"編號: {valid_count}", ha='center', va='center', fontsize=5, fontweight='bold', zorder=5)
         build_ping = build_poly.area * 0.3025
         block_counts[block_id] = block_counts.get(block_id, 0) + 1
-        # 標註地號
+        # 標註地號（無背景框）
         text_label = f"{block_id_to_letter(block_id)}區-{block_counts[block_id]}\n土地:{area_ping:.1f}p\n建築:{build_ping:.1f}p"
-        # 確保標籤可見（尤其是 D 區）
-        label_color = 'black'
-        label_bg = dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor='none', alpha=0.7)
         ax.text(centroid.x, centroid.y, text_label, ha='center', va='center', 
-                fontsize=6, fontweight='bold', rotation=text_rot, color=label_color, 
-                bbox=label_bg, zorder=15)
+                fontsize=5, fontweight='bold', rotation=text_rot, color='black', zorder=15)
         
         
 
@@ -925,8 +927,6 @@ if uploaded_project is not None:
                         if entity.dxf.layer != 'TEXT':
                             continue
                         text_content = entity.dxf.text
-                        # 調試：記錄所有讀到的文字
-                        st.sidebar.text(f"讀到: {text_content[:20]}")
                         if '區-' in text_content:
                             # 解析地號，例如 "A區-1" → block_id = 1, lot_num = 1
                             parts = text_content.split('\n')[0]  # 第一行是地號
@@ -941,8 +941,8 @@ if uploaded_project is not None:
                     # 根據地塊位置自動分配 block_id（4區分配）
                     lots_with_blocks = []
                     
-                    # 強制使用位置分配（調試用）
-                    if False and lot_labels:
+                    # 有地號文字時，優先用文字位置配對地塊街廓
+                    if lot_labels:
                         for lot in lots_from_dxf:
                             centroid = lot.centroid
                             min_dist = float('inf')
@@ -977,7 +977,7 @@ if uploaded_project is not None:
                     if lot_labels:
                         st.sidebar.success(f"✅ 讀取到 {len(lot_labels)} 個地號標籤")
                     else:
-                        st.sidebar.warning("⚠️ 未讀取到地號標籤，所有地塊預設為 A 區")
+                        st.sidebar.warning("⚠️ 未讀取到地號標籤，已改用位置自動分配 A/B/C/D")
                     
                     st.session_state['imported_lots'] = lots_with_blocks
                 
