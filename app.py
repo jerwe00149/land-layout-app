@@ -821,12 +821,19 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=4)
 
-# 3.0 路寬標示（嚴格使用左側設定：V=直向寬度、H=橫向寬度）
-if roads and roads_info:
-    # 收集左側設定（同方向可能多條，取該方向第一條作為本次標示值）
+# 3.0 路寬標示（每條道路中心都要顯示）
+if roads:
+    # 優先用左側設定值，其次用 session_state 中 DXF 反推的值，最後用幾何量測
     v_width = None
     h_width = None
-    for info in roads_info:
+    
+    # 來源1: 左側 sidebar 目前的 roads_info
+    active_roads_info = roads_info if roads_info else []
+    # 來源2: session_state 中的 roads_info（DXF 反推值）
+    if not active_roads_info:
+        active_roads_info = st.session_state.get('roads_info', [])
+    
+    for info in active_roads_info:
         if len(info) < 3:
             continue
         t = str(info[0]).upper()
@@ -844,11 +851,11 @@ if roads and roads_info:
         is_vertical = (rmaxy - rminy) > (rmaxx - rminx)
 
         if is_vertical:
-            road_w = v_width if v_width is not None else road_width_from_polygon(r)
+            road_w = v_width if v_width is not None else round(road_width_from_polygon(r), 1)
         else:
-            road_w = h_width if h_width is not None else road_width_from_polygon(r)
+            road_w = h_width if h_width is not None else round(road_width_from_polygon(r), 1)
 
-        label_pt = r.representative_point()  # 放在該灰色道路中心
+        label_pt = r.representative_point()
         ax.text(
             label_pt.x, label_pt.y,
             f"路寬 {float(road_w):.1f}m",
