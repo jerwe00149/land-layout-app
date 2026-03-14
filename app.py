@@ -309,18 +309,20 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping, roa
         msp.add_text(f"建築:{build_ping:.1f}p", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100-100))
         msp.add_text(f"面寬:{lot_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 50}).set_placement((centroid.x*100-150, centroid.y*100-200))
         
-        # 面寬標線
+        # 標註線（橫向+縱向都標）
         b_minx, b_miny, b_maxx, b_maxy = build_poly.bounds
-        if abs(arrow_dx) > abs(arrow_dy):
-            dim_x = b_minx if arrow_dx < 0 else b_maxx
-            b_width = b_maxy - b_miny
-            msp.add_line((dim_x*100, b_miny*100), (dim_x*100, b_maxy*100), dxfattribs={'layer': 'DIMENSION'})
-            msp.add_text(f"{b_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((dim_x*100+10, centroid.y*100))
-        else:
-            dim_y = b_miny if arrow_dy < 0 else b_maxy
-            b_width = b_maxx - b_minx
-            msp.add_line((b_minx*100, dim_y*100), (b_maxx*100, dim_y*100), dxfattribs={'layer': 'DIMENSION'})
-            msp.add_text(f"{b_width:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((centroid.x*100, dim_y*100+10))
+        b_w = b_maxx - b_minx  # 橫向寬度
+        b_h = b_maxy - b_miny  # 縱向深度
+        
+        # 橫向標註（底部）
+        dim_y = b_miny - 0.3
+        msp.add_line((b_minx*100, dim_y*100), (b_maxx*100, dim_y*100), dxfattribs={'layer': 'DIMENSION'})
+        msp.add_text(f"{b_w:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((centroid.x*100, dim_y*100-60))
+        
+        # 縱向標註（右側）
+        dim_x = b_maxx + 0.3
+        msp.add_line((dim_x*100, b_miny*100), (dim_x*100, b_maxy*100), dxfattribs={'layer': 'DIMENSION'})
+        msp.add_text(f"{b_h:.1f}m", dxfattribs={'layer': 'TEXT', 'height': 40}).set_placement((dim_x*100+60, centroid.y*100))
             
     # 道路寬度標註
     if roads_info:
