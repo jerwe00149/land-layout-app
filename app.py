@@ -1259,11 +1259,33 @@ if uploaded_project is not None:
                     if inferred_roads_info:
                         st.session_state['roads_info'] = inferred_roads_info
                         st.session_state['road_count'] = len(inferred_roads_info)
+                        
+                        # 同步 slider widget keys（避免舊 key 值覆蓋 DXF 反推值）
+                        v_idx = 0
+                        h_idx = 0
+                        for ri in inferred_roads_info:
+                            if ri[0] == 'V':
+                                st.session_state[f'vpos_{v_idx}'] = float(ri[1])
+                                st.session_state[f'vw_{v_idx}'] = float(ri[2])
+                                v_idx += 1
+                            else:
+                                st.session_state[f'hpos_{h_idx}'] = float(ri[1])
+                                st.session_state[f'hw_{h_idx}'] = float(ri[2])
+                                h_idx += 1
                     
                     # 反推基地尺寸
                     bminx, bminy, bmaxx, bmaxy = base_polygon.bounds
                     st.session_state['base_width'] = round(bmaxx - bminx, 1)
                     st.session_state['base_height'] = round(bmaxy - bminy, 1)
+                    
+                    # 清除可能衝突的舊 widget keys
+                    for old_key in list(st.session_state.keys()):
+                        if old_key.startswith(('vpos_', 'vw_', 'hpos_', 'hw_', 'bw_', 'bd_')):
+                            if old_key not in [f'vpos_{i}' for i in range(v_idx)] + \
+                                               [f'vw_{i}' for i in range(v_idx)] + \
+                                               [f'hpos_{i}' for i in range(h_idx)] + \
+                                               [f'hw_{i}' for i in range(h_idx)]:
+                                del st.session_state[old_key]
                     
                     # 反推最小坪數及面寬/深度
                     if 'imported_lots' in st.session_state:
