@@ -574,11 +574,14 @@ base_coords = st.session_state.base_coords
 
 base_polygon = Polygon(base_coords)
 
-# 預先檢測街廓數量
-lots_preview, roads_preview = generate_layout(
-    base_polygon, width_req, depth_req, 
-    roads_info, min_ping, auto_orient, auto_merge
-)
+# 預先檢測街廓數量（DXF 模式用匯入資料，否則用參數預覽）
+if st.session_state.get('loaded_from_dxf', False) and 'imported_lots' in st.session_state:
+    lots_preview = st.session_state['imported_lots']
+else:
+    lots_preview, roads_preview = generate_layout(
+        base_polygon, width_req, depth_req, 
+        roads_info, min_ping, auto_orient, auto_merge
+    )
 
 # 統計街廓數量
 block_ids = set()
