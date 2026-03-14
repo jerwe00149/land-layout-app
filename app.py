@@ -498,6 +498,12 @@ def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, b
 st.markdown("## 🏗️ 建築師排平圖系統 <span style='font-size: 14px; font-weight: normal; color: gray;'>（張哲維建築師事務所版權所有）</span>", unsafe_allow_html=True)
 
 # DXF 匯入後同步 slider widget keys（必須在 widget 建立前執行）
+# 先同步建築參數的暫存值到 widget keys
+for _tk in ['width_req', 'depth_req', 'min_ping']:
+    if f'_dxf_{_tk}' in st.session_state:
+        st.session_state[_tk] = float(st.session_state[f'_dxf_{_tk}'])
+        del st.session_state[f'_dxf_{_tk}']
+
 if st.session_state.get('_dxf_clear_widget_keys', False):
     ri = st.session_state.get('roads_info', [])
     v_roads = [r for r in ri if str(r[0]).upper().startswith('V')]
@@ -1420,14 +1426,14 @@ if uploaded_project is not None:
                                 lot_depths.append(max(w, h))
                         if valid_areas:
                             median_area = sorted(valid_areas)[len(valid_areas)//2]
-                            st.session_state['min_ping'] = max(15, round(median_area * 0.6, 0))
+                            st.session_state['_dxf_min_ping'] = max(15, round(median_area * 0.6, 0))
                             # 反推面寬/深度（取中位數）
                             if lot_widths:
-                                st.session_state['width_req'] = round(sorted(lot_widths)[len(lot_widths)//2], 1)
+                                st.session_state['_dxf_width_req'] = round(sorted(lot_widths)[len(lot_widths)//2], 1)
                             if lot_depths:
-                                st.session_state['depth_req'] = round(sorted(lot_depths)[len(lot_depths)//2], 1)
+                                st.session_state['_dxf_depth_req'] = round(sorted(lot_depths)[len(lot_depths)//2], 1)
                         else:
-                            st.session_state['min_ping'] = 20
+                            st.session_state['_dxf_min_ping'] = 20
                     
                     # 反推各街廓的面寬/深度
                     if 'imported_lots' in st.session_state:
@@ -1491,10 +1497,10 @@ if uploaded_project is not None:
                 
                 if '建築參數' in project_data:
                     params = project_data['建築參數']
-                    st.session_state['width_req'] = params.get('基準面寬', 5.0)
-                    st.session_state['depth_req'] = params.get('基準深度', 20.0)
+                    st.session_state['_dxf_width_req'] = params.get('基準面寬', 5.0)
+                    st.session_state['_dxf_depth_req'] = params.get('基準深度', 20.0)
                     st.session_state['coverage_ratio'] = params.get('建蔽率', 0.6)
-                    st.session_state['min_ping'] = params.get('最小坪數', 20.0)
+                    st.session_state['_dxf_min_ping'] = params.get('最小坪數', 20.0)
                     st.session_state['auto_orient'] = params.get('自動方向', True)
                     st.session_state['auto_merge'] = params.get('自動合併', False)
                 
