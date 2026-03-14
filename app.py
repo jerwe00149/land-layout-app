@@ -605,6 +605,17 @@ if st.session_state.get('_dxf_clear_widget_keys', False):
         st.session_state[f'bw_{bid}'] = float(bw)
         st.session_state[f'bd_{bid}'] = float(bd)
     
+    # 更新快照為 widget 實際值（避免浮點差異）
+    bp = st.session_state.get('block_params', {})
+    if bp:
+        widget_bp = {}
+        for bid, (bw, bd) in bp.items():
+            # 用 widget 會顯示的值（step=0.1 對齊）
+            actual_w = round(round(float(bw) * 10) / 10, 1)
+            actual_d = round(round(float(bd) * 10) / 10, 1)
+            widget_bp[bid] = (actual_w, actual_d)
+        st.session_state['_dxf_block_params_snapshot'] = widget_bp
+    
     st.session_state['_dxf_clear_widget_keys'] = False
 
 with st.sidebar:
