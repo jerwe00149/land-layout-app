@@ -354,46 +354,64 @@ def generate_dxf(base_poly, lots, roads_poly_list, coverage_ratio, min_ping, roa
 
 def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=True):
     """Re-subdivide a single block polygon into lots with given width/depth."""
-    from shapely.geometry import box as sbox
+    from shapely.geometry import box as sbox, Polygon as ShapelyPolygon
+    
+    # 確保 block_poly 有效
+    if block_poly.is_empty or not block_poly.is_valid:
+        block_poly = block_poly.buffer(0)
+    
     bounds = block_poly.bounds
     if not bounds: return []
     minx, miny, maxx, maxy = bounds
     
     bw = maxx - minx
     bh = maxy - miny
+    if bw < 0.1 or bh < 0.1: return []
     
-    # 決定切割方向（沿長邊排列）
+    lots = []
+    
+    # 決定切割方向（面寬方向切）
     if bw >= bh:
-        # 橫向排列（沿 X 切）
+        # 橫向排列（沿 X 切，每塊寬=width）
         n_cols = max(1, int(round(bw / width)))
         actual_w = bw / n_cols
-        lots = []
         for c in range(n_cols):
             x0 = minx + c * actual_w
             x1 = x0 + actual_w
             lot_box = sbox(x0, miny, x1, maxy)
             lot = block_poly.intersection(lot_box)
-            if not lot.is_empty and lot.area > 0.1:
-                area_ping = lot.area * 0.3025
-                if area_ping >= min_area:
-                    cx = lot.centroid.x
-                    lots.append((lot, 0, 1, block_id))
-        return lots
+            if lot.is_empty: continue
+            # 只保留 Polygon
+            if lot.geom_type == 'MultiPolygon':
+                lot = max(lot.geoms, key=lambda g: g.area)
+            elif lot.geom_type == 'GeometryCollection':
+                polys = [g for g in lot.geoms if g.geom_type == 'Polygon']
+                if polys: lot = max(polys, key=lambda g: g.area)
+                else: continue
+            if lot.geom_type != 'Polygon': continue
+            if lot.area * 0.3025 >= min_area:
+                lots.append((lot, 0, 1, block_id))
     else:
-        # 縱向排列（沿 Y 切）
+        # 縱向排列（沿 Y 切，每塊深=depth）
         n_rows = max(1, int(round(bh / depth)))
         actual_h = bh / n_rows
-        lots = []
         for r in range(n_rows):
             y0 = miny + r * actual_h
             y1 = y0 + actual_h
             lot_box = sbox(minx, y0, maxx, y1)
             lot = block_poly.intersection(lot_box)
-            if not lot.is_empty and lot.area > 0.1:
-                area_ping = lot.area * 0.3025
-                if area_ping >= min_area:
-                    lots.append((lot, 1, 0, block_id))
-        return lots
+            if lot.is_empty: continue
+            if lot.geom_type == 'MultiPolygon':
+                lot = max(lot.geoms, key=lambda g: g.area)
+            elif lot.geom_type == 'GeometryCollection':
+                polys = [g for g in lot.geoms if g.geom_type == 'Polygon']
+                if polys: lot = max(polys, key=lambda g: g.area)
+                else: continue
+            if lot.geom_type != 'Polygon': continue
+            if lot.area * 0.3025 >= min_area:
+                lots.append((lot, 1, 0, block_id))
+    
+    return lots
 
 def generate_layout(poly, w, d, roads_info, min_area, auto_orient, auto_merge, block_params=None, custom_widths=None):
     bounds = poly.bounds
@@ -773,6 +791,7 @@ if st.session_state.get('loaded_from_dxf', False):
         lots = st.session_state.get('imported_lots', [])
         roads = st.session_state.get('imported_roads', [])
         st.info("📂 DXF 原始佈局 — 調整左側參數即可重新生成")
+        st.sidebar.caption(f"🔍 params_changed=False, blocks={dict((bid, len([l for l in lots if (l[3] if len(l)==4 else 1)==bid])) for bid in block_ids) if block_ids else {}}")
     else:
         # 改了 → 只重新分割被修改的街廓，其他保持 DXF 原樣
         imported_lots = st.session_state.get('imported_lots', [])
@@ -828,7 +847,8 @@ if st.session_state.get('loaded_from_dxf', False):
                     new_lots = resubdivide_block(block_poly, bw, bd, bid, min_ping, auto_orient)
                     lots.extend(new_lots)
         
-        st.warning("⚠️ 參數已調整，使用重新產生佈局")
+        changed_info = f"changed_blocks={changed_blocks}" if not global_changed else "global_changed"
+        st.warning(f"⚠️ 參數已調整 ({changed_info})，重新產生佈局")
         if st.button("↩️ 恢復 DXF 原始幾何"):
             st.session_state['_dxf_clear_widget_keys'] = True
             st.rerun()
@@ -1147,7 +1167,12 @@ st.sidebar.download_button(
 
 col_space1, col_chart, col_space2 = st.columns([1, 8, 1])
 with col_chart:
-    st.pyplot(fig)
+    try:
+        st.pyplot(fig)
+    except Exception as e:
+        st.error(f"圖表渲染錯誤: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 
 
