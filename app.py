@@ -367,18 +367,17 @@ def resubdivide_block(block_poly, width, depth, block_id, min_area, auto_orient=
     bh = maxy - miny
     if bw < 0.1 or bh < 0.1: return []
     
-    # 2D 網格切割：面寬控制短邊，深度控制長邊
-    # 判斷哪個方向是面寬方向（短邊）
-    if bw <= bh:
-        # 街廓比較窄高 → X 方向是面寬，Y 方向是深度
+    # 2D 網格切割：面寬=朝路面的邊（短邊），深度=垂直路面的邊（長邊）
+    if bw >= bh:
+        # 街廓比較寬矮 → X 方向切面寬，Y 方向切深度
         n_cols = max(1, int(round(bw / width)))
         n_rows = max(1, int(round(bh / depth)))
-        arrow = (1, 0)  # 面寬朝 X
+        arrow = (0, 1)
     else:
-        # 街廓比較寬矮 → Y 方向是面寬，X 方向是深度
+        # 街廓比較窄高 → Y 方向切面寬，X 方向切深度
         n_cols = max(1, int(round(bw / depth)))
         n_rows = max(1, int(round(bh / width)))
-        arrow = (0, 1)  # 面寬朝 Y
+        arrow = (1, 0)
     
     actual_w = bw / n_cols
     actual_h = bh / n_rows
