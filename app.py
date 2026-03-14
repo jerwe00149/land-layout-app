@@ -780,12 +780,17 @@ for i, r in enumerate(roads):
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-    # 道路寬度標示：優先用左側設定值（依方向/位置配對），不是路長
-    cfg_w = configured_road_width_for_polygon(r, roads_info)
-    if cfg_w is not None:
-        road_w = float(cfg_w)
-    else:
+    # 道路寬度標示
+    # DXF 匯入：以幾何量測為準（避免沿用舊 roads_info 導致 1.5/6 對調）
+    if st.session_state.get('loaded_from_dxf', False):
         road_w = round(road_width_from_polygon(r), 1)
+    else:
+        # 參數生成：用左側設定值
+        cfg_w = configured_road_width_for_polygon(r, roads_info)
+        if cfg_w is not None:
+            road_w = float(cfg_w)
+        else:
+            road_w = round(road_width_from_polygon(r), 1)
 
     # 路寬標示放在道路中心線附近（道路幾何中心）
     label_pt = r.representative_point()
