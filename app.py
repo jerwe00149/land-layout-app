@@ -780,9 +780,8 @@ for r in roads:
     rx, ry = get_polygon_coords(r)
     ax.fill(rx, ry, alpha=0.8, color='dimgray', edgecolor='black', hatch='//', zorder=8)
 
-# 3.0 路寬標示（與左側 roads_info 一一對應）
-if roads:
-    # 道路特徵：方向 + 位置（用來和左側設定逐一配對）
+# 3.0 路寬標示（以左側 roads_info 為主，逐條對應到右側灰路）
+if roads and roads_info:
     road_feats = []
     for i, r in enumerate(roads):
         rminx, rminy, rmaxx, rmaxy = r.bounds
@@ -791,35 +790,30 @@ if roads:
         pos = rc.x if typ == 'V' else rc.y
         road_feats.append({'idx': i, 'poly': r, 'typ': typ, 'pos': pos})
 
-    setting_feats = []
+    used = set()
+    # 逐條設定去找對應道路（左側 -> 右側）
     for info in roads_info:
         if len(info) < 3:
             continue
         t = str(info[0]).upper()
         t = 'V' if t.startswith('V') else ('H' if t.startswith('H') else t)
         try:
-            setting_feats.append({'typ': t, 'pos': float(info[1]), 'w': float(info[2])})
+            set_pos = float(info[1])
+            set_w = float(info[2])
         except Exception:
             continue
 
-    # 依方向分組，按位置排序後一一對齊（最穩定）
-    matched_width = {}
-    for typ in ['V', 'H']:
-        rf = sorted([x for x in road_feats if x['typ'] == typ], key=lambda x: x['pos'])
-        sf = sorted([x for x in setting_feats if x['typ'] == typ], key=lambda x: x['pos'])
-        for k in range(min(len(rf), len(sf))):
-            matched_width[rf[k]['idx']] = sf[k]['w']
+        candidates = [rf for rf in road_feats if rf['typ'] == t and rf['idx'] not in used]
+        if not candidates:
+            continue
+        # 依設定位置找最近那條道路
+        target = min(candidates, key=lambda rf: abs(rf['pos'] - set_pos))
+        used.add(target['idx'])
 
-    # 畫標示
-    for rf in road_feats:
-        r = rf['poly']
-        i = rf['idx']
-        road_w = matched_width.get(i, road_width_from_polygon(r))
-
-        label_pt = r.representative_point()
+        label_pt = target['poly'].representative_point()
         ax.text(
             label_pt.x, label_pt.y,
-            f"路寬 {float(road_w):.1f}m",
+            f"路寬 {set_w:.1f}m",
             ha='center', va='center',
             fontsize=8, fontweight='bold', color='red',
             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.2),
