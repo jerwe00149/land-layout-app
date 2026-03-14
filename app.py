@@ -879,7 +879,7 @@ st.sidebar.caption("💡 包含：參數JSON、DXF、PNG、CSV")
 # 專案載入功能
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📂 載入專案")
-uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.zip / .json / .dxf)", type=['zip', 'json', 'dxf'], key="project_upload")
+uploaded_project = st.sidebar.file_uploader("上傳專案檔案 (.dxf)", type=['dxf'], key="project_upload")
 
 if uploaded_project is not None:
     # 檢查是否已經載入過這個檔案
@@ -891,9 +891,7 @@ if uploaded_project is not None:
             import zipfile
             import io
             
-            is_dxf = uploaded_project.name.endswith('.dxf')
-            
-            if is_dxf:
+            if uploaded_project.name.endswith('.dxf'):
                 # DXF 檔案：直接讀取幾何
                 import ezdxf
                 import tempfile
@@ -1009,6 +1007,8 @@ if uploaded_project is not None:
                 st.sidebar.info("💡 使用 DXF 原始佈局，不會重新生成")
                 st.rerun()
             else:
+                st.sidebar.error('❌ 目前僅支援 DXF 匯入')
+                st.stop()
                 # ZIP 或 JSON
                 if uploaded_project.name.endswith('.zip'):
                     # ZIP 檔案：解壓並讀取
@@ -1064,7 +1064,7 @@ if uploaded_project is not None:
     else:
         st.sidebar.info(f"📂 專案已載入：{uploaded_project.name}")
 
-st.sidebar.caption("💡 上傳 ZIP/JSON 或 DXF 檔案")
+st.sidebar.caption("💡 僅支援上傳 DXF 檔案")
 
 # 清除 DXF 匯入
 if st.session_state.get('loaded_from_dxf', False):
