@@ -114,6 +114,24 @@ from shapely.geometry import Polygon, box
 import shapely.ops
 import shapely.affinity
 
+
+def road_width_from_polygon(poly):
+    """估算道路寬度：取最小外接旋轉矩形的短邊。"""
+    try:
+        mrr = poly.minimum_rotated_rectangle
+        coords = list(mrr.exterior.coords)
+        if len(coords) < 5:
+            return 0.0
+        import math
+        lens = []
+        for i in range(4):
+            x1, y1 = coords[i]
+            x2, y2 = coords[i+1]
+            lens.append(math.hypot(x2-x1, y2-y1))
+        return float(min(lens))
+    except Exception:
+        return 0.0
+
 def get_polygon_coords(poly):
     if poly.geom_type == 'MultiPolygon':
         x, y = [], []
