@@ -110,6 +110,20 @@ def merge_small_lots_into_neighbors(lots, min_ping):
 
 import math
 import matplotlib.pyplot as plt
+# === 中文字體設定（Streamlit Cloud 用 Linux，需要額外設定）===
+import os, platform
+if platform.system() == 'Linux':
+    # Streamlit Cloud runs on Linux with limited CJK fonts
+    import subprocess
+    font_dir = os.path.expanduser('~/.fonts')
+    os.makedirs(font_dir, exist_ok=True)
+    noto_path = os.path.join(font_dir, 'NotoSansCJKtc-Regular.ttf')
+    if not os.path.exists(noto_path):
+        subprocess.run(['apt-get', 'install', '-y', 'fonts-noto-cjk'], capture_output=True)
+    import matplotlib
+    matplotlib.rc('font', family='Noto Sans CJK TC')
+    matplotlib.rcParams['axes.unicode_minus'] = False
+
 from shapely.geometry import Polygon, box
 import shapely.ops
 import shapely.affinity
