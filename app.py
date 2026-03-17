@@ -110,18 +110,33 @@ def merge_small_lots_into_neighbors(lots, min_ping):
 
 import math
 import matplotlib.pyplot as plt
-# === 中文字體設定（Streamlit Cloud 用 Linux，需要額外設定）===
+# === 中文字體設定 ===
 import os, platform
+import matplotlib
+import matplotlib.font_manager as fm
 if platform.system() == 'Linux':
-    # Streamlit Cloud runs on Linux with limited CJK fonts
-    import subprocess
-    font_dir = os.path.expanduser('~/.fonts')
-    os.makedirs(font_dir, exist_ok=True)
-    noto_path = os.path.join(font_dir, 'NotoSansCJKtc-Regular.ttf')
-    if not os.path.exists(noto_path):
-        subprocess.run(['apt-get', 'install', '-y', 'fonts-noto-cjk'], capture_output=True)
-    import matplotlib
-    matplotlib.rc('font', family='Noto Sans CJK TC')
+    # Streamlit Cloud: 用 packages.txt 安裝 fonts-noto-cjk
+    # 清除 matplotlib 字體快取，確保找到新字體
+    cache_dir = matplotlib.get_cachedir()
+    if cache_dir:
+        import glob
+        for f in glob.glob(os.path.join(cache_dir, 'font*')):
+            try: os.remove(f)
+            except: pass
+    fm._load_fontmanager(try_read_cache=False)
+    # 找到 Noto Sans CJK 字體
+    cjk_fonts = [f.name for f in fm.fontManager.ttflist if 'Noto Sans CJK' in f.name or 'Noto Sans TC' in f.name]
+    if cjk_fonts:
+        matplotlib.rc('font', family=cjk_fonts[0])
+    else:
+        # fallback: 任何支援中文的字體
+        for fname in ['WenQuanYi Micro Hei', 'Droid Sans Fallback', 'AR PL UMing TW']:
+            if fname in [f.name for f in fm.fontManager.ttflist]:
+                matplotlib.rc('font', family=fname)
+                break
+    matplotlib.rcParams['axes.unicode_minus'] = False
+elif platform.system() == 'Darwin':
+    matplotlib.rcParams['font.family'] = ['Arial Unicode MS', 'PingFang TC', 'Heiti TC']
     matplotlib.rcParams['axes.unicode_minus'] = False
 
 from shapely.geometry import Polygon, box
